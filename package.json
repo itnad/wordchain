@@ -1,0 +1,10 @@
+{
+  "name": "infinite-word-chain",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "무한 끝말잇기 웹게임",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.46.0"
+  }
+}
