@@ -7,8 +7,35 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- 설정 화면 -->
-  <div class="screen" id="setupScreen">
+
+  <!-- 0단계: 닉네임 화면 -->
+  <div class="screen" id="nicknameScreen">
+    <div class="setup-card">
+      <div class="logo">
+        <span class="logo-en">Infinite Word Chain</span>
+        <span class="logo-ko">무한 끝말잇기</span>
+      </div>
+
+      <div class="nickname-form">
+        <label class="field-label" for="displayNameInput">이름을 입력하세요</label>
+        <input
+          type="text"
+          id="displayNameInput"
+          class="name-input"
+          placeholder="예: 철수"
+          maxlength="10"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <div class="nickname-preview hidden" id="nicknamePreview"></div>
+      </div>
+
+      <button class="btn-start" id="nicknameConfirmBtn" disabled>다음</button>
+    </div>
+  </div>
+
+  <!-- 1단계: 설정 화면 -->
+  <div class="screen hidden" id="setupScreen">
     <div class="setup-card">
       <div class="logo">
         <span class="logo-en">Infinite Word Chain</span>
@@ -51,14 +78,18 @@
     </div>
   </div>
 
-  <!-- 게임 화면 -->
+  <!-- 2단계: 게임 화면 -->
   <div class="screen hidden" id="gameScreen">
     <header class="game-header">
       <div class="header-left">
         <button class="btn-icon" id="settingsToggleBtn" title="설정">⚙</button>
-        <span class="game-title">Infinite Word Chain</span>
+        <span class="game-title">끝말잇기</span>
+      </div>
+      <div class="header-center">
+        <span class="player-nickname" id="playerNicknameBadge"></span>
       </div>
       <div class="header-right">
+        <button class="btn-icon" id="rankingToggleBtn" title="랭킹">🏆</button>
         <span class="turn-badge" id="turnBadge">0턴</span>
         <button class="btn-icon btn-danger" id="resetBtn" title="재시작">↺</button>
       </div>
@@ -82,8 +113,16 @@
       </label>
     </div>
 
+    <!-- 랭킹 패널 -->
+    <div class="ranking-panel hidden" id="rankingPanel">
+      <div class="ranking-header">🏆 오늘의 랭킹 TOP 10</div>
+      <ol class="ranking-list" id="rankingList">
+        <li class="ranking-empty">기록이 없습니다</li>
+      </ol>
+    </div>
+
     <!-- 필수 시작 글자 -->
-    <div class="required-bar" id="requiredBar">
+    <div class="required-bar" id="requiredBar" style="opacity:0.4">
       <span class="required-label">시작 글자</span>
       <div class="required-chars" id="requiredCharsDisplay"></div>
     </div>
@@ -120,6 +159,21 @@
           <span></span><span></span><span></span>
         </div>
         <span>AI 생각 중...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 단어 정보 / 이의 제기 모달 -->
+  <div class="modal-overlay hidden" id="wordInfoModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-word-title" id="modalWord"></span>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-definitions" id="modalDefinitions"></div>
+      <div class="modal-footer">
+        <p class="modal-challenge-hint">이 단어가 잘못 쓰였다고 생각하나요?</p>
+        <button class="btn-challenge" id="challengeBtn">이의 제기</button>
       </div>
     </div>
   </div>

@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "type": "module",
   "description": "무한 끝말잇기 웹게임",
+  "scripts": {
+    "local": "vercel dev"
+  },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.46.0"
+  },
+  "devDependencies": {
+    "vercel": "^50.25.4"
   }
 }

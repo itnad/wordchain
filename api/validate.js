@@ -1,13 +1,73 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+const STDICT_KEY = process.env.STDICT_KEY;
+const NOT_IN_DICT_MSG =
+  '사전에 등록되지 않은 단어입니다. 신조어이거나 아직 표준국어대사전에 ' +
+  '등재되지 않은 단어일 가능성이 있으며, 추후 검토를 통해 허용 여부가 ' +
+  '결정될 수 있습니다. 현재는 오답으로 처리됩니다.';
+
+async function checkStdict(word) {
+  const url = new URL('https://stdict.korean.go.kr/api/search.do');
+  url.searchParams.set('key', STDICT_KEY);
+  url.searchParams.set('q', word);
+  url.searchParams.set('type_search', 'exact');
+  url.searchParams.set('req_type', 'json');
+
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`stdict HTTP ${res.status}`);
+
+  const text = await res.text();
+  if (!text || text.trim() === '') {
+    return { isValid: false, isPersonName: false, isPlaceName: false };
+  }
+
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // XML 또는 빈 응답 → 미등재 단어로 처리
+    return { isValid: false, isPersonName: false, isPlaceName: false };
+  }
+
+  const channel = json?.channel;
+  const total = parseInt(channel?.total ?? '0', 10);
+
+  if (total === 0) {
+    return { isValid: false, isPersonName: false, isPlaceName: false };
+  }
+
+  const rawItems = channel?.item ?? [];
+  const items = Array.isArray(rawItems) ? rawItems : [rawItems];
+
+  // 명사 여부: sense_info 배열 또는 직접 pos 필드 확인
+  const hasNoun = items.some(item => {
+    const senses = item?.sense_info ?? [];
+    const senseArr = Array.isArray(senses) ? senses : [senses];
+    const posFromSense = senseArr.some(s => s?.pos === '명사');
+    const posFromItem = item?.pos === '명사';
+    return posFromSense || posFromItem;
+  });
+
+  if (!hasNoun) {
+    return { isValid: false, isPersonName: false, isPlaceName: false };
+  }
+
+  const isPersonName = items.some(item => {
+    const cat = item?.cat ?? item?.word_info?.cat ?? '';
+    return cat.includes('인명');
+  });
+  const isPlaceName = items.some(item => {
+    const cat = item?.cat ?? item?.word_info?.cat ?? '';
+    return ['지명', '나라명', '지역명'].some(k => cat.includes(k));
+  });
+
+  return { isValid: true, isPersonName, isPlaceName };
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,7 +76,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { word, allowPersonNames, allowPlaceNames } = req.body;
+  const { word, allowPersonNames, allowPlaceNames, sessionId, nickname, gameId } = req.body;
   if (!word) return res.json({ valid: false, reason: '단어를 입력해주세요.' });
 
   const trimmed = word.trim();
@@ -32,7 +92,7 @@ export default async function handler(req, res) {
   const firstChar = chars[0];
   const lastChar  = chars[chars.length - 1];
 
-  // 캐시 확인
+  // 1. Supabase 캐시 확인
   const { data: cached } = await supabase
     .from('words')
     .select('*')
@@ -41,7 +101,8 @@ export default async function handler(req, res) {
 
   if (cached) {
     if (!cached.is_valid) {
-      return res.json({ valid: false, reason: '표준국어대사전에 없는 단어입니다.' });
+      await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
+      return res.json({ valid: false, reason: NOT_IN_DICT_MSG });
     }
     if (!allowPersonNames && cached.is_person_name) {
       return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.' });
@@ -52,52 +113,52 @@ export default async function handler(req, res) {
     return res.json({ valid: true, word: trimmed, fromCache: true });
   }
 
-  // Gemini 검증
+  // 2. 표준국어대사전 API 확인
   try {
-    const prompt = `한국어 끝말잇기 단어 검증 전문가입니다.
+    const result = await checkStdict(trimmed);
 
-단어 "${trimmed}"를 판단해주세요:
-1. 표준국어대사전에 등재된 명사이거나 등재될 만한 일반 명사인가? (전문용어, 합성어, 외래어 명사 포함)
-2. 사람 이름인가? (실존 인물 또는 소설 등의 고유명사)
-3. 지명인가? (국내외 지역, 도시, 산, 강, 나라 이름 등)
-
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이:
-{"is_valid":true,"is_person_name":false,"is_place_name":false,"reason":"이유"}`;
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-
-    let parsed;
-    try {
-      const match = text.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(match ? match[0] : text);
-    } catch {
-      return res.status(500).json({ valid: false, reason: '검증 처리 중 오류가 발생했습니다.' });
-    }
-
-    // Supabase 저장
     await supabase.from('words').upsert({
       word: trimmed,
-      is_valid: !!parsed.is_valid,
-      is_person_name: !!parsed.is_person_name,
-      is_place_name: !!parsed.is_place_name,
+      is_valid: result.isValid,
+      is_person_name: result.isPersonName,
+      is_place_name: result.isPlaceName,
       first_char: firstChar,
       last_char: lastChar,
+      source: 'stdict',
     }, { onConflict: 'word' });
 
-    if (!parsed.is_valid) {
-      return res.json({ valid: false, reason: parsed.reason || '표준국어대사전에 없는 단어입니다.' });
+    if (!result.isValid) {
+      await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
+      return res.json({ valid: false, reason: NOT_IN_DICT_MSG });
     }
-    if (!allowPersonNames && parsed.is_person_name) {
+    if (!allowPersonNames && result.isPersonName) {
       return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.' });
     }
-    if (!allowPlaceNames && parsed.is_place_name) {
+    if (!allowPlaceNames && result.isPlaceName) {
       return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.' });
     }
 
     return res.json({ valid: true, word: trimmed, fromCache: false });
+
   } catch (err) {
     console.error('validate error:', err);
-    return res.status(500).json({ valid: false, reason: 'AI 검증 서비스 오류가 발생했습니다.' });
+    return res.status(503).json({
+      valid: false,
+      reason: '단어 검증 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+    });
+  }
+}
+
+async function logRejected(word, sessionId, nickname, gameId, reason) {
+  try {
+    await supabase.from('rejected_words_log').insert({
+      word,
+      session_id: sessionId ?? null,
+      nickname:   nickname ?? null,
+      game_id:    gameId ?? null,
+      reason,
+    });
+  } catch (e) {
+    console.error('logRejected error:', e);
   }
 }

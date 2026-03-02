@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 · 끝말잇기</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d1a; --card: #141428; --panel: #1a1a35;
+      --border: #2a2a4a; --text: #e0e0f0; --dim: #8888aa;
+      --accent: #00ffa3; --error: #ff4f6a; --warn: #ffb347;
+      --radius: 10px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+    h1 { font-size: 1.3rem; font-weight: 800; padding: 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+    h1 span { font-size: 0.9rem; font-weight: 400; color: var(--dim); margin-left: 12px; }
+
+    /* Login */
+    #loginSection { display: flex; align-items: center; justify-content: center; min-height: 80vh; }
+    .login-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 320px; display: flex; flex-direction: column; gap: 16px; }
+    .login-box h2 { font-size: 1rem; color: var(--dim); text-align: center; }
+    .login-box input { width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 1rem; padding: 10px 14px; outline: none; }
+    .login-box input:focus { border-color: var(--accent); }
+    .btn-login { width: 100%; padding: 12px; background: var(--accent); color: #000; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; }
+    .error-text { color: var(--error); font-size: 0.85rem; text-align: center; }
+
+    /* Main */
+    #mainSection { display: none; }
+    .toolbar { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--card); flex-wrap: wrap; }
+    .toolbar-title { font-weight: 700; font-size: 1rem; }
+    .toolbar-sub { color: var(--dim); font-size: 0.85rem; }
+    .btn-refresh { padding: 6px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer; font-size: 0.85rem; }
+    .btn-refresh:hover { border-color: var(--accent); }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--panel); color: var(--dim); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(42,42,74,0.5); vertical-align: middle; }
+    tr:hover td { background: rgba(26,26,53,0.5); }
+
+    .word-cell { font-size: 1.1rem; font-weight: 700; letter-spacing: 1px; }
+    .count-cell { font-weight: 700; color: var(--warn); }
+    .date-cell  { color: var(--dim); font-size: 0.8rem; }
+    .status-cell { font-size: 0.8rem; }
+    .status-none     { color: var(--dim); }
+    .status-approved { color: var(--accent); font-weight: 600; }
+    .status-rejected { color: var(--error); font-weight: 600; }
+
+    .action-cell { display: flex; gap: 6px; }
+    .btn-approve { padding: 5px 12px; background: rgba(0,255,163,0.1); border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-approve:hover { background: rgba(0,255,163,0.2); }
+    .btn-reject  { padding: 5px 12px; background: rgba(255,79,106,0.1); border: 1px solid var(--error); border-radius: 5px; color: var(--error); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-reject:hover  { background: rgba(255,79,106,0.2); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-tab { padding: 6px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--dim); cursor: pointer; font-size: 0.85rem; }
+    .btn-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,163,0.08); }
+    .btn-dismiss { padding: 5px 12px; background: rgba(0,255,163,0.1); border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-dismiss:hover { background: rgba(0,255,163,0.2); }
+    .btn-uphold  { padding: 5px 12px; background: rgba(255,79,106,0.1); border: 1px solid var(--error);  border-radius: 5px; color: var(--error);  font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-uphold:hover  { background: rgba(255,79,106,0.2); }
+
+    .empty { text-align: center; color: var(--dim); padding: 40px; }
+    .loading { text-align: center; color: var(--dim); padding: 40px; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 0.9rem; z-index: 100; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body>
+
+<h1>끝말잇기 관리자 <span>오답 단어 검토</span></h1>
+
+<!-- 로그인 -->
+<section id="loginSection">
+  <div class="login-box">
+    <h2>관리자 로그인</h2>
+    <input type="password" id="pwInput" placeholder="비밀번호" autocomplete="current-password">
+    <button class="btn-login" id="loginBtn">로그인</button>
+    <div class="error-text hidden" id="loginError">비밀번호가 올바르지 않습니다.</div>
+  </div>
+</section>
+
+<!-- 메인 -->
+<section id="mainSection">
+  <div class="toolbar">
+    <button class="btn-tab active" id="tabRejected" onclick="switchTab('rejected')">오답 집계</button>
+    <button class="btn-tab" id="tabChallenges" onclick="switchTab('challenges')">이의 제기</button>
+    <span class="toolbar-sub" id="wordCount"></span>
+    <button class="btn-refresh" id="refreshBtn">새로고침</button>
+  </div>
+
+  <!-- 오답 집계 -->
+  <div id="panelRejected">
+    <div class="table-wrap">
+      <div class="loading" id="tableLoading">불러오는 중...</div>
+      <table id="wordTable" style="display:none">
+        <thead>
+          <tr>
+            <th>단어</th>
+            <th>오답 횟수</th>
+            <th>마지막 입력</th>
+            <th>현재 상태</th>
+            <th>처리</th>
+          </tr>
+        </thead>
+        <tbody id="wordTableBody"></tbody>
+      </table>
+      <div class="empty hidden" id="emptyMsg">검토할 단어가 없습니다.</div>
+    </div>
+  </div>
+
+  <!-- 이의 제기 -->
+  <div id="panelChallenges" style="display:none">
+    <div class="table-wrap">
+      <div class="loading" id="challengeLoading">불러오는 중...</div>
+      <table id="challengeTable" style="display:none">
+        <thead>
+          <tr>
+            <th>단어</th>
+            <th>이의 횟수</th>
+            <th>마지막 제기</th>
+            <th>처리</th>
+          </tr>
+        </thead>
+        <tbody id="challengeTableBody"></tbody>
+      </table>
+      <div class="empty hidden" id="challengeEmptyMsg">이의 제기된 단어가 없습니다.</div>
+    </div>
+  </div>
+</section>
+
+<script src="admin.js"></script>
+</body>
+</html>
