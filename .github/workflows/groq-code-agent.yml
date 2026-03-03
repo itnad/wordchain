@@ -48,7 +48,7 @@ jobs:
                   paths = [p.strip() for p in f if p.strip()]
           except Exception:
               paths = []
-          MAX_CHARS = 60000
+          MAX_CHARS = 20000
           total = 0
           for path in paths:
               try:
