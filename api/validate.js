@@ -110,17 +110,20 @@ export default async function handler(req, res) {
     steps.push({ label: 'DB', ok: false, detail: `DB오류 ${cacheError.code ?? ''}`.trim() });
     // DB 오류 시에도 사전 API 시도
   } else if (cached) {
-    steps.push({ label: 'DB', ok: true, detail: '캐시 확인' });
     if (!cached.is_valid) {
+      steps.push({ label: 'DB', ok: false, detail: '미등재 단어(캐시됨)' });
       await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
       return res.json({ valid: false, reason: NOT_IN_DICT_MSG, steps });
     }
     if (!allowPersonNames && cached.is_person_name) {
+      steps.push({ label: 'DB', ok: false, detail: '인명(캐시됨)' });
       return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.', steps });
     }
     if (!allowPlaceNames && cached.is_place_name) {
+      steps.push({ label: 'DB', ok: false, detail: '지명(캐시됨)' });
       return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.', steps });
     }
+    steps.push({ label: 'DB', ok: true, detail: '유효한 단어(캐시됨)' });
     return res.json({ valid: true, word: trimmed, fromCache: true, steps });
   } else {
     steps.push({ label: 'DB', ok: null, detail: '캐시 없음' });
