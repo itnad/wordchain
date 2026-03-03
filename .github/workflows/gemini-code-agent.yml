@@ -4,6 +4,11 @@ on:
   issues:
     types: [opened, labeled]
 
+# 동일 이슈에 대해 여러 번 실행될 경우 중복 방지
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   gemini-code-agent:
     if: |
@@ -19,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Rebase를 위해 전체 히스토리 필요
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,7 +46,6 @@ jobs:
             ! -path "./node_modules/*" \
             ! -path "./.github/*" \
             > /tmp/file_list.txt || true
-          cat /tmp/file_list.txt
 
       - name: Run Gemini Code Agent
         id: gemini_agent
@@ -55,155 +59,110 @@ jobs:
           import os
           import json
           import google.generativeai as genai
+
           genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-          model = genai.GenerativeModel("gemini-2.5-flash")
+          # 사용자의 요청에 따라 gemini-2.5-flash 사용
+          model = genai.GenerativeModel("gemini-2.5-flash") 
+          
           issue_title = os.environ["ISSUE_TITLE"]
           issue_body = os.environ.get("ISSUE_BODY", "(no body)")
           issue_number = os.environ["ISSUE_NUMBER"]
+          
           repo_files = {}
           try:
               with open("/tmp/file_list.txt") as f:
                   paths = [p.strip() for p in f if p.strip()]
-          except Exception:
-              paths = []
-          MAX_CHARS = 20000
+          except: paths = []
+
+          # 파일 수집 (토큰 제한 내에서 최대한 수집)
+          MAX_CHARS = 40000
           total = 0
           for path in paths:
               try:
                   with open(path, "r", encoding="utf-8", errors="ignore") as fh:
                       content = fh.read()
-                  if total + len(content) > MAX_CHARS:
-                      repo_files[path] = content[:MAX_CHARS - total] + "\n...(truncated)"
-                      break
+                  if total + len(content) > MAX_CHARS: break
                   repo_files[path] = content
                   total += len(content)
-              except Exception:
-                  pass
+              except: pass
+
           files_section = "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in repo_files.items())
-          prompt = ("You are a senior software engineer.\n" "Analyze the GitHub Issue and modify ONLY what is explicitly requested. Do NOT modify anything else.\n" "Respond ONLY with a JSON object (no markdown, no backticks):\n" "{\n" '  "analysis": "brief analysis",\n' '  "changes": [\n' "    {\n" '      "path": "file path",\n' '      "action": "modify or create or delete",\n' '      "content": "full file content",\n' '      "reason": "reason"\n' "    }\n" "  ],\n" '  "summary": "one line summary for commit message"\n' "}\n\n" f"Issue #{issue_number}\n" f"Title: {issue_title}\n" f"Body:\n{issue_body}\n\n" f"Repository files:\n{files_section}")
-          print(f"Calling Gemini API for issue #{issue_number}...")
+          prompt = (f"You are a senior React software engineer. Analyze GitHub Issue #{issue_number}.\n"
+                    "Modify ONLY what is requested. Respond ONLY with a raw JSON object (no markdown code blocks):\n"
+                    "{\"analysis\": \"...\", \"changes\": [{\"path\": \"...\", \"action\": \"modify\", \"content\": \"...\", \"reason\": \"...\"}], \"summary\": \"...\"}\n\n"
+                    f"Title: {issue_title}\nBody: {issue_body}\n\nRepository Context:\n{files_section}")
+
           response = model.generate_content(prompt)
-          raw = response.text.strip()
-          if raw.startswith("```"):
-              raw = "\n".join(raw.split("\n")[1:])
-          if raw.endswith("```"):
-              raw = "\n".join(raw.split("\n")[:-1])
-          raw = raw.strip()
+          raw = response.text.strip().replace("```json", "").replace("```", "").strip()
           result = json.loads(raw)
+
           for change in result.get("changes", []):
               path = change["path"].lstrip("./")
-              action = change["action"]
-              content = change.get("content", "")
-              if action == "delete":
-                  if os.path.exists(path):
-                      os.remove(path)
-                      print(f"Deleted: {path}")
+              if change["action"] == "delete":
+                  if os.path.exists(path): os.remove(path)
               else:
-                  parent = os.path.dirname(path)
-                  if parent:
-                      os.makedirs(parent, exist_ok=True)
-                  with open(path, "w", encoding="utf-8") as fh:
-                      fh.write(content)
-                  print(f"{action}: {path}")
-          summary = result.get("summary", "AI code update")
-          analysis = result.get("analysis", "")
+                  os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+                  with open(path, "w", encoding="utf-8") as fh: fh.write(change["content"])
+
           with open(os.environ["GITHUB_ENV"], "a") as ef:
-              ef.write(f"COMMIT_MSG={summary}\n")
-              ef.write(f"GEMINI_ANALYSIS<<EOF\n{analysis}\nEOF\n")
+              ef.write(f"COMMIT_MSG={result.get('summary', 'AI code update')}\n")
+              ef.write(f"GEMINI_ANALYSIS<<EOF\n{result.get('analysis', '')}\nEOF\n")
           with open("/tmp/changes.json", "w") as cf:
               json.dump(result.get("changes", []), cf, ensure_ascii=False)
-          print(f"Done: {summary}")
           PYEOF
           python3 /tmp/agent.py
 
-      - name: Commit and push
+      - name: Commit and push safely
         id: commit_push
         run: |
-          git config user.name "Gemini Code Agent"
-          git config user.email "gemini-agent@noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 1. 변경된 파일이 있는지 먼저 확인
           git add -A
           if git diff --cached --quiet; then
-            echo "No changes to commit"
             echo "HAS_CHANGES=false" >> $GITHUB_ENV
           else
-            # 2. 내 변경 사항을 먼저 로컬에 커밋 (이래야 pull --rebase가 작동함)
             git commit -m "🤖 [Issue #${{ github.event.issue.number }}] ${{ env.COMMIT_MSG }}"
             
-            # 3. 원격 저장소의 최신 내용을 가져와서 내 커밋을 그 위로 재정렬 (충돌 방지 핵심)
-            # 만약 충돌이 나면 내 코드(Gemini)를 우선하도록 설정
-            git pull --rebase -X theirs origin HEAD
+            # 수동 수정본(Remote)이 있을 경우 Gemini의 작업을 그 위로 Rebase
+            # 충돌 발생 시 Gemini의 작업(-X theirs)을 우선하여 덮어씀
+            SUCCESS=false
+            for i in {1..3}; do
+              if git pull --rebase -X theirs origin main && git push origin main; then
+                SUCCESS=true
+                break
+              fi
+              echo "Push rejected. Retrying in 5s..."
+              sleep 5
+            done
             
-            # 4. 최종 푸시
-            git push origin HEAD
+            if [ "$SUCCESS" = false ]; then exit 1; fi
             echo "HAS_CHANGES=true" >> $GITHUB_ENV
           fi
 
-      - name: Comment on issue (success)
-        if: success()
+      - name: Comment on issue
+        if: always()
         uses: actions/github-script@v7
+        env:
+          HAS_CHANGES: ${{ env.HAS_CHANGES }}
+          GEMINI_ANALYSIS: ${{ env.GEMINI_ANALYSIS }}
+          COMMIT_MSG: ${{ env.COMMIT_MSG }}
+          JOB_STATUS: ${{ job.status }}
         with:
           script: |
-            const fs = require('fs');
-            const hasChanges = process.env.HAS_CHANGES === 'true';
-            const analysis = process.env.GEMINI_ANALYSIS || '';
-            const commitMsg = process.env.COMMIT_MSG || '';
-            const sha = context.sha;
-            let changesTable = '';
-            try {
-              const changes = JSON.parse(fs.readFileSync('/tmp/changes.json', 'utf8'));
-              const rows = changes.map(c => {
-                const icon = c.action === 'modify' ? 'Modify' : c.action === 'create' ? 'Create' : 'Delete';
-                return `| \`${c.path}\` | ${icon} | ${c.reason} |`;
-              }).join('\n');
-              changesTable = `\n| File | Action | Reason |\n|------|--------|--------|\n${rows}`;
-            } catch(e) {}
-            const body = hasChanges
-              ? `## ✅ Gemini Code Agent 완료\n\n**분석**\n${analysis}\n\n**변경 파일**${changesTable}\n\n**커밋**: \`${sha.substring(0,7)}\` — ${commitMsg}\n\n> 코드가 자동으로 수정되어 Push되었습니다.`
-              : `## ✅ Gemini Code Agent\n\n**분석**\n${analysis}\n\n> 코드 변경이 필요하지 않았습니다.`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
-            try {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: ['ai-done']
-              });
-            } catch(e) {}
-
-      - name: Comment on issue (failure)
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const stepOutcome = '${{ steps.gemini_agent.outcome }}';
-            const pushOutcome = '${{ steps.commit_push.outcome }}';
-            let errorMsg = '';
-            if (stepOutcome === 'failure') {
-              errorMsg = 'Gemini API 호출 또는 코드 수정 중 오류가 발생했습니다.';
-            } else if (pushOutcome === 'failure') {
-              errorMsg = 'Git Push 중 오류가 발생했습니다. (충돌 또는 권한 문제)';
+            const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
+            let body = '';
+            if (JOB_STATUS === 'success') {
+              body = `## ✅ Gemini 2.5 Flash 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
+              body += HAS_CHANGES === 'true' 
+                ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
+                : `> ✨ 변경 사항이 없어 종료되었습니다.`;
             } else {
-              errorMsg = '알 수 없는 오류가 발생했습니다.';
+              body = `## ❌ 작업 실패\n\nGit 충돌 또는 설정 오류가 발생했습니다. Actions 로그를 확인해 주세요.`;
             }
-            const body = `## ❌ Gemini Code Agent 실패\n\n**오류 단계**: ${stepOutcome === 'failure' ? 'Gemini 코드 수정' : 'Git Push'}\n\n**원인**: ${errorMsg}\n\n> Actions 탭에서 상세 로그를 확인하세요.\n> \`github.com/${{ github.repository }}/actions\``;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body
+              body: body
             });
-            try {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: ['ai-failed']
-              });
-            } catch(e) {}
