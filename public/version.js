@@ -1,4 +1,4 @@
-window.APP_VERSION = 'v1.0.10';
+window.APP_VERSION = 'v1.0.11';
 
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.version-tag').forEach(el => {
