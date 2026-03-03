@@ -1,1 +1,1 @@
-function aiTurn(previousWord) { ... } catch (error) { showAiLoading(false); showGameOver(`AI 응답 실패: ${error.message} - ${error.stack}`, 'player_win'); return; }
+function checkNicknameInput() { const inputField = document.getElementById('displayNameInput'); const button = document.getElementById('nicknameConfirmBtn'); if (inputField.value.trim() !== '') { button.disabled = false; } else { button.disabled = true; }}
