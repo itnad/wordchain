@@ -316,6 +316,54 @@ html, body {
   white-space: nowrap;
 }
 
+.wi-existing-info {
+  font-size: 0.8rem;
+  color: var(--dim, #8888aa);
+}
+
+.wi-badge-existing {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+  color: var(--dim, #8888aa);
+  opacity: 0.7;
+}
+
+.wi-existing-label {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--dim, #8888aa);
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+.wi-summary {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(0,255,163,0.04);
+  border: 1px solid rgba(0,255,163,0.15);
+  border-radius: 8px;
+}
+
+.wi-summary-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent, #00ffa3);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wi-summary-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.wi-badge-sm {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+}
+
 /* ===== Game Screen ===== */
 #gameScreen {
   display: flex;

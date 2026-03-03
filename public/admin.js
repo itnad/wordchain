@@ -283,7 +283,10 @@ async function decide(word, action, btn) {
 // ===== 단어 입력 챌린지 =====
 const wiState = {
   chain: [], usedWords: [],
-  requiredChars: [], isFirstWord: true, count: 0,
+  requiredChars: [], isFirstWord: true,
+  newCount: 0,       // 실제 신규 추가된 단어 수
+  existingCount: 0,  // 이미 DB에 있던 단어 수
+  newWords: [],      // 신규 추가된 단어 목록
 };
 let wiInitialized = false;
 
@@ -329,14 +332,36 @@ function wiUpdateRequiredBar(required) {
   });
 }
 
-function wiAddToChain(word) {
+function wiAddToChain(word, isNew) {
   const chain = document.getElementById('wiChain');
   const badge = document.createElement('span');
-  badge.className = 'wi-badge';
+  badge.className = isNew ? 'wi-badge' : 'wi-badge wi-badge-existing';
   const chars = [...word];
-  badge.innerHTML = `<span class="hl-first">${chars[0]}</span>${chars.slice(1,-1).join('')}<span class="hl-last">${chars[chars.length-1]}</span>`;
+  const label = isNew ? '' : ' <span class="wi-existing-label">기존</span>';
+  badge.innerHTML = `<span class="hl-first">${chars[0]}</span>${chars.slice(1,-1).join('')}<span class="hl-last">${chars[chars.length-1]}</span>${label}`;
   chain.appendChild(badge);
   chain.scrollTop = chain.scrollHeight;
+}
+
+function wiUpdateStats() {
+  document.getElementById('wiCount').textContent = wiState.newCount;
+
+  const existingInfo = document.getElementById('wiExistingInfo');
+  if (wiState.existingCount > 0) {
+    document.getElementById('wiExistingCount').textContent = wiState.existingCount;
+    existingInfo.style.display = '';
+  }
+
+  // 신규 단어 목록 업데이트
+  const summary  = document.getElementById('wiSummary');
+  const summaryW = document.getElementById('wiSummaryWords');
+  if (wiState.newWords.length > 0) {
+    summaryW.innerHTML = wiState.newWords.map(w => {
+      const c = [...w];
+      return `<span class="wi-badge wi-badge-sm"><span class="hl-first">${c[0]}</span>${c.slice(1,-1).join('')}<span class="hl-last">${c[c.length-1]}</span></span>`;
+    }).join('');
+    summary.style.display = '';
+  }
 }
 
 async function wiSubmit() {
@@ -374,18 +399,26 @@ async function wiSubmit() {
       return;
     }
 
-    wiAddToChain(word);
+    const isNew = !data.alreadyExists;
+    wiAddToChain(word, isNew);
     wiState.usedWords.push(word);
     wiState.isFirstWord = false;
-    wiState.count++;
-    document.getElementById('wiCount').textContent = wiState.count;
+
+    if (isNew) {
+      wiState.newCount++;
+      wiState.newWords.push(word);
+      showToast(`"${word}" 신규 추가 완료`);
+    } else {
+      wiState.existingCount++;
+      showToast(`"${word}" 이미 등록된 단어`, 'warn');
+    }
+    wiUpdateStats();
 
     const required = getRequiredChars(word);
     wiState.requiredChars = required;
     wiUpdateRequiredBar(required);
 
     input.value = '';
-    showToast(`"${word}" 추가 완료`);
   } catch {
     wiShowError('서버 오류가 발생했습니다.');
   } finally {
@@ -395,11 +428,15 @@ async function wiSubmit() {
 }
 
 // ===== 토스트 =====
-function showToast(msg, isError = false) {
+// type: 'ok'(초록) | 'warn'(노랑) | 'error'(빨강)
+function showToast(msg, typeOrBool = 'ok') {
+  const type = typeOrBool === true ? 'error' : typeOrBool === false ? 'ok' : typeOrBool;
+  const colors = { ok: 'var(--accent)', warn: 'var(--warn, #ffb347)', error: 'var(--error)' };
+  const color  = colors[type] ?? colors.ok;
   const t = document.createElement('div');
   t.className = 'toast';
-  t.style.borderColor = isError ? 'var(--error)' : 'var(--accent)';
-  t.style.color = isError ? 'var(--error)' : 'var(--accent)';
+  t.style.borderColor = color;
+  t.style.color = color;
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);

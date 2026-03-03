@@ -136,7 +136,10 @@
   <div id="panelWordInput" style="display:none">
     <div class="table-wrap">
       <div class="wi-stats">
-        이번 세션 추가: <strong id="wiCount">0</strong> 단어
+        신규 추가: <strong id="wiCount">0</strong>단어
+        <span class="wi-existing-info" id="wiExistingInfo" style="display:none">
+          &nbsp;·&nbsp; 기존 단어: <span id="wiExistingCount">0</span>개
+        </span>
       </div>
 
       <!-- 다음 시작 글자 -->
@@ -147,6 +150,12 @@
 
       <!-- 입력된 단어 체인 -->
       <div class="wi-chain" id="wiChain"></div>
+
+      <!-- 신규 등록 단어 목록 -->
+      <div class="wi-summary" id="wiSummary" style="display:none">
+        <div class="wi-summary-title">이번 세션 신규 등록</div>
+        <div class="wi-summary-words" id="wiSummaryWords"></div>
+      </div>
 
       <!-- 입력창 -->
       <div class="wi-input-row">

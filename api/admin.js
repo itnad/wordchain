@@ -116,7 +116,14 @@ export default async function handler(req, res) {
     if (chars.length !== 3 || !chars.every(c => /[가-힣]/.test(c)))
       return res.status(400).json({ error: '3글자 한글 단어만 입력 가능합니다.' });
 
-    const { error } = await supabase.from('words').upsert({
+    // 기존 등록 여부 확인
+    const { data: existing } = await supabase
+      .from('words').select('word').eq('word', word).maybeSingle();
+    if (existing) {
+      return res.json({ success: true, word, alreadyExists: true });
+    }
+
+    const { error } = await supabase.from('words').insert({
       word,
       is_valid:       true,
       is_person_name: false,
@@ -124,10 +131,10 @@ export default async function handler(req, res) {
       first_char:     chars[0],
       last_char:      chars[chars.length - 1],
       source:         'manual',
-    }, { onConflict: 'word' });
+    });
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ success: true, word });
+    return res.json({ success: true, word, alreadyExists: false });
   }
 
   return res.status(400).json({ error: '유효하지 않은 action입니다.' });
