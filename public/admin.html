@@ -15,6 +15,8 @@
     body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
     h1 { font-size: 1.3rem; font-weight: 800; padding: 20px; border-bottom: 1px solid var(--border); background: var(--card); }
     h1 span { font-size: 0.9rem; font-weight: 400; color: var(--dim); margin-left: 12px; }
+    .btn-home { float: right; font-size: 0.8rem; font-weight: 600; color: var(--dim); text-decoration: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; transition: color 0.15s, border-color 0.15s; }
+    .btn-home:hover { color: var(--accent); border-color: var(--accent); }
 
     /* Login */
     #loginSection { display: flex; align-items: center; justify-content: center; min-height: 80vh; }
@@ -70,7 +72,7 @@
 </head>
 <body>
 
-<h1>끝말잇기 관리자 <span>오답 단어 검토</span></h1>
+<h1>끝말잇기 관리자 <span>오답 단어 검토</span><a href="/" class="btn-home">← 게임으로</a></h1>
 
 <!-- 로그인 -->
 <section id="loginSection">
