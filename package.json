@@ -1,6 +1,6 @@
 {
   "name": "infinite-word-chain",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "type": "module",
   "description": "무한 끝말잇기 웹게임",
   "scripts": {
