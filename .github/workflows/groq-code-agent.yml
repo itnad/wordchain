@@ -101,6 +101,7 @@ jobs:
         run: |
           git config user.name "Groq Code Agent"
           git config user.email "groq-agent@noreply.github.com"
+          git pull --rebase origin HEAD || true
           git add -A
           if git diff --cached --quiet; then
             echo "No changes to commit"
