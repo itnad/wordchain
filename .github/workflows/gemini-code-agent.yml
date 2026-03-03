@@ -2,7 +2,7 @@ name: Gemini Code Agent
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled] # opened를 제거
 
 # 동일 이슈에 대해 여러 번 실행될 경우 중복 방지
 concurrency:
