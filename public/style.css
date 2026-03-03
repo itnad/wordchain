@@ -203,13 +203,27 @@ html, body {
 .btn-start:active:not(:disabled) { transform: translateY(0); }
 .btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: -12px;
+}
+
 .version-tag {
   font-size: 0.7rem;
   color: var(--border);
-  text-align: center;
   letter-spacing: 1px;
-  margin-top: -12px;
 }
+
+.admin-link {
+  font-size: 0.7rem;
+  color: var(--border);
+  text-decoration: none;
+  letter-spacing: 0.5px;
+  transition: color 0.15s;
+}
+.admin-link:hover { color: var(--text-dim); }
 
 /* ===== Game Screen ===== */
 #gameScreen {
