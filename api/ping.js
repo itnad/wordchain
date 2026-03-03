@@ -12,7 +12,15 @@ export default async function handler(req, res) {
     url.searchParams.set('req_type', 'json');
 
     const start = Date.now();
-    const r = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
+        'Referer': 'https://stdict.korean.go.kr/',
+      },
+    });
     const text = await r.text();
     sdictResult = {
       status: r.status,
