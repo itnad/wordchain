@@ -20,9 +20,9 @@ async function checkStdict(word) {
 
   let res;
   try {
-    res = await fetch(url.toString());
+    res = await fetch(url.toString(), { signal: AbortSignal.timeout(3000) });
   } catch (netErr) {
-    // 네트워크 레벨 차단(ECONNRESET 등) → 호출부에서 임시 허용 처리
+    // 네트워크 레벨 차단(ECONNRESET 등) 또는 타임아웃 → 호출부에서 임시 허용 처리
     return { networkError: true, message: netErr.message };
   }
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText || '서버 오류'}`);
