@@ -22,7 +22,8 @@ async function checkStdict(word) {
   try {
     res = await fetch(url.toString());
   } catch (netErr) {
-    throw new Error(`네트워크 연결 실패: ${netErr.message}`);
+    // 네트워크 레벨 차단(ECONNRESET 등) → 호출부에서 임시 허용 처리
+    return { networkError: true, message: netErr.message };
   }
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText || '서버 오류'}`);
 
@@ -132,6 +133,18 @@ export default async function handler(req, res) {
   // 2. 표준국어대사전 API 확인
   try {
     const result = await checkStdict(trimmed);
+
+    // 네트워크 차단(ECONNRESET 등): 임시 허용
+    if (result.networkError) {
+      steps.push({ label: '사전API', ok: null, detail: '연결 불가 – 임시 허용' });
+      await supabase.from('words').upsert({
+        word: trimmed, is_valid: true,
+        is_person_name: false, is_place_name: false,
+        first_char: firstChar, last_char: lastChar,
+        source: 'unverified',
+      }, { onConflict: 'word' });
+      return res.json({ valid: true, word: trimmed, fromCache: false, steps });
+    }
 
     steps.push({
       label: '사전API',
