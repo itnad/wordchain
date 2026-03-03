@@ -213,11 +213,16 @@ async function confirmNickname() {
 
     // Check for HTTP errors (e.g., 4xx, 5xx status codes)
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ message: '알 수 없는 서버 오류' }));
-      throw new Error(errorData.message || '서버가 오류를 반환했습니다.');
+      const errorData = await res.json().catch(() => ({ message: '알 수 없는 서버 오류 (응답 본문 없음)' }));
+      throw new Error(errorData.message || `서버 오류 발생: ${res.status} ${res.statusText}`);
     }
 
     const data = await res.json();
+
+    // Explicitly check if required data is present in the server response
+    if (!data || typeof data.display_name === 'undefined' || typeof data.nickname === 'undefined') {
+      throw new Error('서버에서 필요한 사용자 정보(이름, 닉네임)를 받지 못했습니다. 서버 응답 형식을 확인해주세요.');
+    }
 
     state.displayName = data.display_name;
     state.nickname    = data.nickname;
@@ -227,9 +232,10 @@ async function confirmNickname() {
     showScreen(setupScreen);
   } catch (error) {
     console.error('Nickname confirmation failed:', error);
-    nicknameConfirmBtn.disabled  = false;
+    alert(error.message || '닉네임 등록 중 알 수 없는 오류가 발생했습니다. 다시 시도해주세요.');
+  } finally { // Ensure button is always re-enabled regardless of success or failure
+    nicknameConfirmBtn.disabled = false;
     nicknameConfirmBtn.textContent = '다음';
-    alert(error.message || '서버 오류가 발생했습니다. 다시 시도해주세요.');
   }
 }
 
@@ -473,133 +479,4 @@ async function aiTurn(previousWord) {
       }),
     });
     updateProcessLog('AI 응답 수신. 단어 확인 중...');
-    result = await res.json();
-  } catch {
-    showAiLoading(false);
-    showGameOver('네트워크 오류로 AI가 응답하지 못했습니다. AI 패배!', 'player_win');
-    updateProcessLog('네트워크 통신 실패. AI 서비스에 연결할 수 없습니다.', true);
-    return;
-  }
-
-  showAiLoading(false);
-
-  if (!result.word || result.surrender) {
-    showGameOver('AI가 단어를 찾지 못했습니다. 플레이어 승리!', 'player_win');
-    updateProcessLog('AI 단어 생성 실패. 적합한 단어를 찾지 못했습니다.', true);
-    return;
-  }
-
-  updateProcessLog(`AI 단어 선정 완료: "${result.word}".`);
-  addToChain(result.word, 'ai', result.fromCache);
-  state.usedWords.push(result.word);
-  state.turns++;
-  turnBadge.textContent = `${state.turns}턴`;
-
-  const nextRequired = getRequiredChars(result.word);
-  state.requiredChars = nextRequired;
-  updateRequiredBar(nextRequired);
-
-  state.playerTurn = true;
-  setInputEnabled(true);
-  wordInput.focus();
-}
-
-// ===== UI 업데이트 =====
-function addToChain(word, turn, fromCache) {
-  chainStartHint.classList.add('hidden');
-
-  const chars = [...word];
-  const first = chars[0];
-  const last  = chars[chars.length - 1];
-  const mid   = chars.slice(1, -1).join('');
-
-  const bubble = document.createElement('div');
-  bubble.className = `word-bubble ${turn}`;
-
-  const label = turn === 'user' ? (state.nickname || '나') : 'AI';
-  bubble.innerHTML = `
-    <div class="bubble-top">
-      <span class="bubble-label">${label}</span>
-      <button class="btn-word-info" title="뜻 보기 / 이의 제기">?</button>
-    </div>
-    <div class="bubble-word">
-      <span class="hl-first">${first}</span>${mid}<span class="hl-last">${last}</span>
-    </div>
-  `;
-
-  bubble.querySelector('.btn-word-info').addEventListener('click', () => openWordInfo(word));
-
-  chainContainer.appendChild(bubble);
-  chainContainer.scrollTop = chainContainer.scrollHeight;
-
-  state.chain.push({ word, turn, timestamp: new Date().toISOString() });
-}
-
-function updateRequiredBar(required) {
-  requiredBar.style.opacity = '1';
-  requiredCharsDisplay.innerHTML = '';
-
-  required.forEach((r, i) => {
-    if (i > 0) {
-      const or = document.createElement('span');
-      or.className = 'req-or';
-      or.textContent = '또는';
-      requiredCharsDisplay.appendChild(or);
-    }
-    const span = document.createElement('span');
-    span.className = `req-char${r.isDueum ? ' dueum' : ''}`;
-    span.innerHTML = r.isDueum
-      ? `${r.char} <span class="dueum-badge">두음</span>`
-      : r.char;
-    requiredCharsDisplay.appendChild(span);
-  });
-}
-
-function showError(errorDetails) {
-  errorMsg.innerHTML = ''; // Clear previous content
-  errorMsg.classList.remove('hidden');
-  errorMsg.style.animation = 'none';
-  errorMsg.offsetHeight; // Trigger reflow for animation reset
-  errorMsg.style.animation = ''; // Reapply animation
-
-  const ul = document.createElement('ul');
-  ul.className = 'error-detail-log'; // Add a class for potential styling
-  if (Array.isArray(errorDetails)) {
-    errorDetails.forEach(detail => {
-      const li = document.createElement('li');
-      li.textContent = detail;
-      ul.appendChild(li);
-    });
-  } else {
-    const li = document.createElement('li');
-    li.textContent = errorDetails;
-    ul.appendChild(li);
-  }
-  errorMsg.appendChild(ul);
-}
-
-function hideError() {
-  errorMsg.classList.add('hidden');
-  errorMsg.innerHTML = ''; // Clear innerHTML to remove list content
-}
-
-function setInputEnabled(enabled) {
-  wordInput.disabled = !enabled;
-  submitBtn.disabled = !enabled;
-}
-
-function showAiLoading(show) {
-  aiLoading.classList.toggle('hidden', !show);
-}
-
-async function showGameOver(message, result) {
-  state.gameOver   = true;
-  state.playerTurn = false;
-  setInputEnabled(false);
-
-  // 게임 종료 기록
-  let personalBest   = 0;
-  let isNewRecord    = false;
-  if (state.currentGameId) {
-    try {
-      const res
+    result = await
