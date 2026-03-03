@@ -203,6 +203,14 @@ html, body {
 .btn-start:active:not(:disabled) { transform: translateY(0); }
 .btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.version-tag {
+  font-size: 0.7rem;
+  color: var(--border);
+  text-align: center;
+  letter-spacing: 1px;
+  margin-top: -12px;
+}
+
 /* ===== Game Screen ===== */
 #gameScreen {
   display: flex;

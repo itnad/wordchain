@@ -4,7 +4,8 @@
   "type": "module",
   "description": "무한 끝말잇기 웹게임",
   "scripts": {
-    "local": "vercel dev"
+    "local": "vercel dev",
+    "deploy": "node scripts/bump-version.js && git push origin main"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.46.0"
