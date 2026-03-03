@@ -1,1 +1,1 @@
-function aiTurn(previousWord) { ... } catch { showAiLoading(false); showGameOver('AI 응답 실패: 네트워크 오류', 'player_win'); return; }
+function aiTurn(previousWord) { ... } catch (error) { showAiLoading(false); showGameOver(`AI 응답 실패: ${error.message}`, 'player_win'); return; }
