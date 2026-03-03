@@ -175,7 +175,7 @@ async function upsertBatch(rows) {
   if (rows.length === 0) return 0;
   const { error } = await supabase
     .from('words')
-    .upsert(rows, { onConflict: 'word' });
+    .upsert(rows, { onConflict: 'word', ignoreDuplicates: true });
   if (error) {
     console.error('  upsert 오류:', error.message);
     return 0;

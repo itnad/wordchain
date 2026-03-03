@@ -102,7 +102,7 @@ async function seedChar(char) {
 
 async function upsertBatch(words) {
   if (words.length === 0) return;
-  const { error } = await supabase.from('words').upsert(words, { onConflict: 'word' });
+  const { error } = await supabase.from('words').upsert(words, { onConflict: 'word', ignoreDuplicates: true });
   if (error) console.error('  upsert 오류:', error.message);
 }
 
