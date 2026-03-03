@@ -1,5 +1,6 @@
 {
   "framework": null,
   "devCommand": null,
-  "outputDirectory": "public"
+  "outputDirectory": "public",
+  "regions": ["icn1"]
 }
