@@ -302,34 +302,66 @@ async function handleSubmit() {
   if (state.gameOver || !state.playerTurn) return;
 
   const raw = wordInput.value.trim();
-  if (!raw) return;
+  if (!raw) {
+    hideError(); // Clear previous error if any, but don't show new error for empty input
+    return;
+  }
 
   hideError();
 
+  const validationLog = [];
+  let isValidClientSide = true;
+
   const chars = [...raw];
+  validationLog.push(`➡️ 입력 단어 '${raw}' 유효성 검증 시작...`);
+
+  // 1. 단어 길이 검증
   if (chars.length !== 3) {
-    showError('정확히 3글자 단어만 입력할 수 있습니다.');
-    return;
-  }
-  if (!chars.every(c => /[가-힣]/.test(c))) {
-    showError('한글 단어만 입력할 수 있습니다.');
-    return;
-  }
-  if (state.usedWords.includes(raw)) {
-    showError('이미 사용된 단어입니다.');
-    return;
+    validationLog.push('❌ 단어 길이 검증: 3글자 단어만 입력 가능합니다.');
+    isValidClientSide = false;
+  } else {
+    validationLog.push('✅ 단어 길이 검증: (3글자)');
   }
 
-  if (!state.isFirstWord) {
+  // 2. 한글 여부 검증
+  if (isValidClientSide && !chars.every(c => /[가-힣]/.test(c))) {
+    validationLog.push('❌ 한글 여부 검증: 한글 단어만 입력할 수 있습니다.');
+    isValidClientSide = false;
+  } else if (isValidClientSide) {
+    validationLog.push('✅ 한글 여부 검증: (한글)');
+  }
+
+  // 3. 중복 단어 검증
+  if (isValidClientSide && state.usedWords.includes(raw)) {
+    validationLog.push('❌ 단어 중복 검증: 이미 사용된 단어입니다.');
+    isValidClientSide = false;
+  } else if (isValidClientSide) {
+    validationLog.push('✅ 단어 중복 검증: (미사용)');
+  }
+
+  // 4. 시작 글자 일치 검증 (첫 단어가 아닐 경우)
+  if (isValidClientSide && !state.isFirstWord) {
     const allowed = state.requiredChars.map(r => r.char);
     if (!allowed.includes(chars[0])) {
       const display = state.requiredChars.map(r => `'${r.char}'`).join(' 또는 ');
-      showError(`${display}(으)로 시작하는 단어를 입력해야 합니다.`);
-      return;
+      validationLog.push(`❌ 시작 글자 검증: '${chars[0]}'(으)로 시작할 수 없습니다. ${display}(으)로 시작해야 합니다.`);
+      isValidClientSide = false;
+    } else {
+      validationLog.push(`✅ 시작 글자 검증: ('${chars[0]}'으로 시작)`);
     }
+  } else if (isValidClientSide && state.isFirstWord) {
+    validationLog.push('✅ 시작 글자 검증: (첫 단어이므로 제한 없음)');
+  }
+
+  // 클라이언트 측 유효성 검증 실패 시 즉시 오류 표시
+  if (!isValidClientSide) {
+    showError(validationLog);
+    setInputEnabled(true);
+    return;
   }
 
   setInputEnabled(false);
+  validationLog.push('➡️ 서버 단어 유효성 검증 시작...');
 
   let result;
   try {
@@ -345,18 +377,38 @@ async function handleSubmit() {
         gameId:           state.currentGameId,
       }),
     });
+
+    // HTTP 오류 상태 코드 (4xx, 5xx 등) 처리
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ message: '응답 본문에 오류 메시지 없음' }));
+      validationLog.push(`❌ 서버 응답 오류: ${res.status} ${res.statusText}`);
+      validationLog.push(`   상세: ${errorData.message || '알 수 없는 서버 오류가 발생했습니다.'}`);
+      showError(validationLog);
+      setInputEnabled(true);
+      return;
+    }
+
     result = await res.json();
-  } catch {
-    showError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+  } catch (error) {
+    // 네트워크 오류 또는 JSON 파싱 오류 처리
+    validationLog.push('❌ 네트워크 통신 실패: 서버에 연결할 수 없습니다.');
+    validationLog.push(`   상세: ${error.message || '알 수 없는 네트워크 오류'}`);
+    showError(validationLog);
     setInputEnabled(true);
     return;
   }
 
+  // 서버 측 유효성 검증 결과 처리
   if (!result.valid) {
-    showError(result.reason || '유효하지 않은 단어입니다.');
+    validationLog.push('❌ 서버 단어 유효성 검증: 실패');
+    validationLog.push(`   이유: ${result.reason || '유효하지 않은 단어입니다.'}`);
+    showError(validationLog);
     setInputEnabled(true);
     return;
   }
+
+  validationLog.push('✅ 서버 단어 유효성 검증: 성공');
+  // console.log(validationLog); // For debugging success flow
 
   addToChain(raw, 'user', result.fromCache);
   state.usedWords.push(raw);
@@ -469,17 +521,32 @@ function updateRequiredBar(required) {
   });
 }
 
-function showError(msg) {
-  errorMsg.textContent = msg;
+function showError(errorDetails) {
+  errorMsg.innerHTML = ''; // Clear previous content
   errorMsg.classList.remove('hidden');
   errorMsg.style.animation = 'none';
-  errorMsg.offsetHeight;
-  errorMsg.style.animation = '';
+  errorMsg.offsetHeight; // Trigger reflow for animation reset
+  errorMsg.style.animation = ''; // Reapply animation
+
+  const ul = document.createElement('ul');
+  ul.className = 'error-detail-log'; // Add a class for potential styling
+  if (Array.isArray(errorDetails)) {
+    errorDetails.forEach(detail => {
+      const li = document.createElement('li');
+      li.textContent = detail;
+      ul.appendChild(li);
+    });
+  } else {
+    const li = document.createElement('li');
+    li.textContent = errorDetails;
+    ul.appendChild(li);
+  }
+  errorMsg.appendChild(ul);
 }
 
 function hideError() {
   errorMsg.classList.add('hidden');
-  errorMsg.textContent = '';
+  errorMsg.innerHTML = ''; // Clear innerHTML to remove list content
 }
 
 function setInputEnabled(enabled) {
@@ -501,132 +568,4 @@ async function showGameOver(message, result) {
   let isNewRecord    = false;
   if (state.currentGameId) {
     try {
-      const res = await fetch('/api/game-end', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          game_id:           state.currentGameId,
-          session_id:        state.sessionId,
-          result:            result ?? 'ai_win',
-          player_word_count: state.playerWordCount,
-          turns:             state.turns,
-        }),
-      });
-      const data = await res.json();
-      personalBest = data.personal_best ?? 0;
-      isNewRecord  = data.is_new_record ?? false;
-    } catch (e) {
-      console.error('Failed to record game end:', e);
-    }
-  }
-
-  const gameOverBanner = document.createElement('div');
-  gameOverBanner.id        = 'gameOverBanner';
-  gameOverBanner.className = 'game-over-banner';
-  gameOverBanner.innerHTML = `
-    <div class="game-over-message">${message}</div>
-    <div class="game-over-score">이번 게임: ${state.playerWordCount} 단어</div>
-    ${isNewRecord ? `<div class="game-over-record">✨ 신기록 달성! (${personalBest} 단어)</div>` : `<div class="game-over-record">최고 기록: ${personalBest} 단어</div>`}
-    <button class="btn-restart" onclick="resetGame()">다시 시작</button>
-  `;
-  gameScreen.appendChild(gameOverBanner);
-}
-
-// ===== 단어 정보 모달 =====
-const wordInfoModal    = $('wordInfoModal');
-const modalWord        = $('modalWord');
-const modalDefinitions = $('modalDefinitions');
-const modalClose       = $('modalClose');
-const challengeBtn     = $('challengeBtn');
-
-async function openWordInfo(word) {
-  modalWord.textContent = word;
-  modalDefinitions.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
-  challengeBtn.disabled = true;
-
-  wordInfoModal.classList.remove('hidden');
-
-  try {
-    const res = await fetch(`/api/word-info?word=${encodeURIComponent(word)}`);
-    const data = await res.json();
-
-    if (data.definitions && data.definitions.length > 0) {
-      modalDefinitions.innerHTML = data.definitions.map(def => `<p class="definition-item">${def}</p>`).join('');
-    } else {
-      modalDefinitions.innerHTML = '<p class="no-definition">정의를 찾을 수 없습니다.</p>';
-    }
-    challengeBtn.disabled = false;
-  } catch (e) {
-    console.error('Failed to fetch word info:', e);
-    modalDefinitions.innerHTML = '<p class="no-definition">단어 정보를 불러오지 못했습니다.</p>';
-    challengeBtn.disabled = true;
-  }
-}
-
-modalClose.addEventListener('click', () => {
-  wordInfoModal.classList.add('hidden');
-});
-
-challengeBtn.addEventListener('click', async () => {
-  const word = modalWord.textContent;
-  if (!word || !confirm(`단어 '${word}'에 대해 이의를 제기하시겠습니까?`)) return;
-
-  challengeBtn.disabled = true;
-  challengeBtn.textContent = '제출 중...';
-
-  try {
-    const res = await fetch('/api/challenge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ word, sessionId: state.sessionId }),
-    });
-    const data = await res.json();
-
-    if (data.success) {
-      alert('이의 제기가 성공적으로 접수되었습니다. 검토 후 처리됩니다.');
-      wordInfoModal.classList.add('hidden');
-    } else {
-      alert(data.message || '이의 제기에 실패했습니다.');
-    }
-  } catch (e) {
-    console.error('Challenge failed:', e);
-    alert('이의 제기 중 네트워크 오류가 발생했습니다. 다시 시도해주세요.');
-  } finally {
-    challengeBtn.disabled = false;
-    challengeBtn.textContent = '이의 제기';
-  }
-});
-
-// ===== 랭킹 =====
-async function loadRanking() {
-  try {
-    const res = await fetch('/api/ranking');
-    const ranking = await res.json();
-
-    rankingList.innerHTML = ''; // Clear existing list
-
-    if (ranking.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'ranking-empty';
-      li.textContent = '기록이 없습니다';
-      rankingList.appendChild(li);
-    } else {
-      ranking.forEach((entry, index) => {
-        const li = document.createElement('li');
-        li.className = 'ranking-item';
-        li.innerHTML = `
-          <span class="ranking-rank">${index + 1}.</span>
-          <span class="ranking-nickname">${entry.nickname}</span>
-          <span class="ranking-score">${entry.player_word_count} 단어</span>
-        `;
-        rankingList.appendChild(li);
-      });
-    }
-  } catch (e) {
-    console.error('Failed to load ranking:', e);
-    rankingList.innerHTML = '<li class="ranking-empty">랭킹을 불러올 수 없습니다.</li>';
-  }
-}
-
-// 앱 시작
-init();
+      const res
