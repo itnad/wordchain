@@ -116,6 +116,14 @@ const rankingToggleBtn   = $('rankingToggleBtn');
 const rankingPanel       = $('rankingPanel');
 const rankingList        = $('rankingList');
 
+// Helper to switch screens
+function showScreen(screenToShow) {
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.add('hidden');
+  });
+  screenToShow.classList.remove('hidden');
+}
+
 // ===== 초기화 =====
 async function init() {
   state.sessionId = getOrCreateSessionId();
@@ -498,147 +506,4 @@ async function showGameOver(message, result) {
         }),
       });
       const data = await res.json();
-      personalBest = data.personal_best ?? 0;
-      isNewRecord  = data.is_new_record  ?? false;
-    } catch {}
-  }
-
-  // 배너 구성
-  const banner = document.createElement('div');
-  banner.id = 'gameOverBanner';
-  banner.className = 'game-over-banner';
-
-  let statsHtml = '';
-  if (result === 'player_win') {
-    statsHtml = `
-      <div class="game-over-stats">
-        <span>이번 기록: <span class="stat-highlight">${state.playerWordCount}턴</span></span>
-        <span>내 최고기록: <span class="stat-highlight">${personalBest}턴</span></span>
-      </div>
-      ${isNewRecord ? '<div class="game-over-new-record">★ 새 최고기록! ★</div>' : ''}
-    `;
-  }
-
-  banner.innerHTML = `
-    <div class="game-over-title">${message}</div>
-    ${statsHtml}
-    <div class="game-over-actions">
-      <button class="btn-restart" onclick="resetGame()">다시 시작</button>
-    </div>
-  `;
-
-  gameScreen.insertBefore(banner, $('inputArea'));
-
-  // 랭킹 갱신
-  loadRanking();
-}
-
-// ===== 단어 정보 모달 =====
-const wordInfoModal  = $('wordInfoModal');
-const modalWord      = $('modalWord');
-const modalDefs      = $('modalDefinitions');
-const modalClose     = $('modalClose');
-const challengeBtn   = $('challengeBtn');
-
-modalClose.addEventListener('click', closeWordInfo);
-wordInfoModal.addEventListener('click', e => { if (e.target === wordInfoModal) closeWordInfo(); });
-
-function closeWordInfo() {
-  wordInfoModal.classList.add('hidden');
-  wordInfoModal.dataset.word = '';
-}
-
-async function openWordInfo(word) {
-  wordInfoModal.dataset.word = word;
-  modalWord.textContent = word;
-  modalDefs.innerHTML = '<p class="modal-loading">불러오는 중...</p>';
-  challengeBtn.disabled = false;
-  challengeBtn.textContent = '이의 제기';
-  wordInfoModal.classList.remove('hidden');
-
-  try {
-    const res  = await fetch(`/api/word-info?word=${encodeURIComponent(word)}`);
-    const data = await res.json();
-
-    if (!data.definitions || data.definitions.length === 0) {
-      modalDefs.innerHTML = '<p class="modal-no-def">표준국어대사전에서 뜻을 찾을 수 없습니다.</p>';
-    } else {
-      modalDefs.innerHTML = data.definitions
-        .map((d, i) => `<p class="modal-def"><span class="def-num">${i + 1}.</span>${d.pos ? `<span class="def-pos">[${d.pos}]</span>` : ''} ${d.definition}</p>`)
-        .join('');
-    }
-  } catch {
-    modalDefs.innerHTML = '<p class="modal-no-def">뜻 정보를 불러오지 못했습니다.</p>';
-  }
-}
-
-challengeBtn.addEventListener('click', async () => {
-  const word = wordInfoModal.dataset.word;
-  if (!word) return;
-
-  challengeBtn.disabled = true;
-  challengeBtn.textContent = '제출 중...';
-
-  try {
-    const res  = await fetch('/api/challenge', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        word,
-        sessionId: state.sessionId,
-        nickname:  state.nickname,
-        gameId:    state.currentGameId,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      challengeBtn.textContent = '이의 제기 완료 ✓';
-    } else {
-      challengeBtn.disabled = false;
-      challengeBtn.textContent = '이의 제기';
-    }
-  } catch {
-    challengeBtn.disabled = false;
-    challengeBtn.textContent = '이의 제기';
-  }
-});
-
-// ===== 랭킹 =====
-async function loadRanking() {
-  try {
-    const res = await fetch('/api/ranking');
-    const data = await res.json();
-    renderRanking(data.ranking ?? []);
-  } catch {
-    // 랭킹 로드 실패는 무시
-  }
-}
-
-function renderRanking(ranking) {
-  rankingList.innerHTML = '';
-
-  if (ranking.length === 0) {
-    rankingList.innerHTML = '<li class="ranking-empty">기록이 없습니다</li>';
-    return;
-  }
-
-  ranking.forEach(item => {
-    const li = document.createElement('li');
-    li.className = 'ranking-item';
-    li.innerHTML = `
-      <span class="ranking-rank ${item.rank <= 3 ? 'top3' : ''}">${item.rank}</span>
-      <span class="ranking-nickname" title="${item.nickname}">${item.nickname}</span>
-      <span class="ranking-score">${item.player_word_count}턴</span>
-    `;
-    rankingList.appendChild(li);
-  });
-}
-
-// ===== 화면 전환 =====
-function showScreen(screen) {
-  [nicknameScreen, setupScreen, gameScreen].forEach(s => s.classList.add('hidden'));
-  screen.classList.remove('hidden');
-}
-
-// ===== 시작 =====
-init();
+      personalBest = data.personal_best ?? 
