@@ -130,60 +130,19 @@ export default async function handler(req, res) {
     steps.push({ label: 'DB', ok: null, detail: '캐시 없음' });
   }
 
-  // 2. 표준국어대사전 API 확인
-  try {
-    const result = await checkStdict(trimmed);
-
-    // 네트워크 차단(ECONNRESET 등): 임시 허용
-    if (result.networkError) {
-      steps.push({ label: '사전API', ok: null, detail: '연결 불가 – 임시 허용' });
-      await supabase.from('words').upsert({
-        word: trimmed, is_valid: true,
-        is_person_name: false, is_place_name: false,
-        first_char: firstChar, last_char: lastChar,
-        source: 'unverified',
-      }, { onConflict: 'word' });
-      return res.json({ valid: true, word: trimmed, fromCache: false, steps });
-    }
-
-    steps.push({
-      label: '사전API',
-      ok:     result.isValid,
-      detail: result.isValid ? '명사 등재됨' : '미등재 단어',
-    });
-
-    await supabase.from('words').upsert({
-      word: trimmed,
-      is_valid: result.isValid,
-      is_person_name: result.isPersonName,
-      is_place_name: result.isPlaceName,
-      first_char: firstChar,
-      last_char: lastChar,
-      source: 'stdict',
-    }, { onConflict: 'word' });
-
-    if (!result.isValid) {
-      await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
-      return res.json({ valid: false, reason: NOT_IN_DICT_MSG, steps });
-    }
-    if (!allowPersonNames && result.isPersonName) {
-      return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.', steps });
-    }
-    if (!allowPlaceNames && result.isPlaceName) {
-      return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.', steps });
-    }
-
-    return res.json({ valid: true, word: trimmed, fromCache: false, steps });
-
-  } catch (err) {
-    console.error('validate error:', err);
-    steps.push({ label: '사전API', ok: false, detail: err.message.slice(0, 60) });
-    return res.status(503).json({
-      valid: false,
-      reason: `단어 검증 중 오류가 발생했습니다: ${err.message.slice(0, 80)}`,
-      steps,
-    });
-  }
+  // 2. DB에 없으면 임시 허용 (stdict는 Vercel에서 IP 차단됨)
+  //    로컬 seed 스크립트로 DB를 충분히 채운 후에는 이 경로가 드물게 발생
+  steps.push({ label: 'DB', ok: null, detail: '미등록 – 임시 허용' });
+  await supabase.from('words').upsert({
+    word:           trimmed,
+    is_valid:       true,
+    is_person_name: false,
+    is_place_name:  false,
+    first_char:     firstChar,
+    last_char:      lastChar,
+    source:         'unverified',
+  }, { onConflict: 'word' });
+  return res.json({ valid: true, word: trimmed, fromCache: false, steps });
 }
 
 async function logRejected(word, sessionId, nickname, gameId, reason) {
