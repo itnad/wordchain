@@ -109,5 +109,26 @@ export default async function handler(req, res) {
     return res.json({ success: true, action, word });
   }
 
+  // 단어 직접 추가 (관리자 입력용)
+  if (action === 'add-word') {
+    if (!word) return res.status(400).json({ error: 'word가 필요합니다.' });
+    const chars = [...word];
+    if (chars.length !== 3 || !chars.every(c => /[가-힣]/.test(c)))
+      return res.status(400).json({ error: '3글자 한글 단어만 입력 가능합니다.' });
+
+    const { error } = await supabase.from('words').upsert({
+      word,
+      is_valid:       true,
+      is_person_name: false,
+      is_place_name:  false,
+      first_char:     chars[0],
+      last_char:      chars[chars.length - 1],
+      source:         'manual',
+    }, { onConflict: 'word' });
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ success: true, word });
+  }
+
   return res.status(400).json({ error: '유효하지 않은 action입니다.' });
 }

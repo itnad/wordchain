@@ -1,6 +1,40 @@
 let adminPassword = '';
 let currentTab    = 'rejected';
 
+// ===== 두음법칙 (game.js와 동일) =====
+const I_VOWELS = new Set([2, 3, 6, 7, 12, 17, 20]);
+function decomposeSyllable(char) {
+  const code = char.charCodeAt(0) - 0xAC00;
+  if (code < 0 || code > 11171) return null;
+  const jong = code % 28;
+  const jung = Math.floor((code - jong) / 28) % 21;
+  const cho  = Math.floor(code / 28 / 21);
+  return { cho, jung, jong };
+}
+function composeSyllable(cho, jung, jong) {
+  return String.fromCharCode((cho * 21 + jung) * 28 + jong + 0xAC00);
+}
+function getDuemVariants(char) {
+  const d = decomposeSyllable(char);
+  if (!d) return [char];
+  const { cho, jung, jong } = d;
+  const variants = [char];
+  if (cho === 5) {
+    const newCho = I_VOWELS.has(jung) ? 11 : 2;
+    const v = composeSyllable(newCho, jung, jong);
+    if (v !== char) variants.push(v);
+  } else if (cho === 2 && I_VOWELS.has(jung)) {
+    const v = composeSyllable(11, jung, jong);
+    if (v !== char) variants.push(v);
+  }
+  return variants;
+}
+function getRequiredChars(word) {
+  const chars = [...word];
+  const variants = getDuemVariants(chars[chars.length - 1]);
+  return variants.map((c, i) => ({ char: c, isDueum: i > 0 }));
+}
+
 const loginSection      = document.getElementById('loginSection');
 const mainSection       = document.getElementById('mainSection');
 const pwInput           = document.getElementById('pwInput');
@@ -60,15 +94,18 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabRejected').classList.toggle('active', tab === 'rejected');
   document.getElementById('tabChallenges').classList.toggle('active', tab === 'challenges');
+  document.getElementById('tabWordInput').classList.toggle('active', tab === 'word-input');
   document.getElementById('panelRejected').style.display   = tab === 'rejected'   ? '' : 'none';
   document.getElementById('panelChallenges').style.display = tab === 'challenges' ? '' : 'none';
+  document.getElementById('panelWordInput').style.display  = tab === 'word-input' ? '' : 'none';
   if (tab === 'challenges') loadChallenges();
+  if (tab === 'word-input') initWordInput();
 }
 
 // ===== 목록 로드 =====
 refreshBtn.addEventListener('click', () => {
   if (currentTab === 'rejected') loadList();
-  else loadChallenges();
+  else if (currentTab === 'challenges') loadChallenges();
 });
 
 async function loadList() {
@@ -233,6 +270,120 @@ async function decide(word, action, btn) {
   } finally {
     if (row) row.style.opacity = '1';
     btn.disabled = false;
+  }
+}
+
+// ===== 단어 입력 챌린지 =====
+const wiState = {
+  chain: [], usedWords: [],
+  requiredChars: [], isFirstWord: true, count: 0,
+};
+let wiInitialized = false;
+
+function initWordInput() {
+  if (wiInitialized) return;
+  wiInitialized = true;
+  document.getElementById('wiSubmitBtn').addEventListener('click', wiSubmit);
+  document.getElementById('wiWordInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') wiSubmit();
+  });
+  document.getElementById('wiWordInput').focus();
+}
+
+function wiShowError(msg) {
+  const el = document.getElementById('wiError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function wiHideError() {
+  const el = document.getElementById('wiError');
+  el.classList.add('hidden');
+  el.textContent = '';
+}
+
+function wiUpdateRequiredBar(required) {
+  const bar    = document.getElementById('wiRequiredBar');
+  const display = document.getElementById('wiRequiredCharsDisplay');
+  bar.style.opacity = '1';
+  display.innerHTML = '';
+  required.forEach((r, i) => {
+    if (i > 0) {
+      const or = document.createElement('span');
+      or.className = 'req-or';
+      or.textContent = '또는';
+      display.appendChild(or);
+    }
+    const span = document.createElement('span');
+    span.className = `req-char${r.isDueum ? ' dueum' : ''}`;
+    span.innerHTML = r.isDueum
+      ? `${r.char} <span class="dueum-badge">두음</span>`
+      : r.char;
+    display.appendChild(span);
+  });
+}
+
+function wiAddToChain(word) {
+  const chain = document.getElementById('wiChain');
+  const badge = document.createElement('span');
+  badge.className = 'wi-badge';
+  const chars = [...word];
+  badge.innerHTML = `<span class="hl-first">${chars[0]}</span>${chars.slice(1,-1).join('')}<span class="hl-last">${chars[chars.length-1]}</span>`;
+  chain.appendChild(badge);
+  chain.scrollTop = chain.scrollHeight;
+}
+
+async function wiSubmit() {
+  const input = document.getElementById('wiWordInput');
+  const word  = input.value.trim();
+  wiHideError();
+
+  const chars = [...word];
+  if (chars.length !== 3) { wiShowError('정확히 3글자 단어를 입력하세요.'); return; }
+  if (!chars.every(c => /[가-힣]/.test(c))) { wiShowError('한글 단어만 입력 가능합니다.'); return; }
+  if (wiState.usedWords.includes(word)) { wiShowError('이미 추가한 단어입니다.'); return; }
+
+  if (!wiState.isFirstWord) {
+    const allowed = wiState.requiredChars.map(r => r.char);
+    if (!allowed.includes(chars[0])) {
+      const display = wiState.requiredChars.map(r => `'${r.char}'`).join(' 또는 ');
+      wiShowError(`${display}(으)로 시작하는 단어를 입력해야 합니다.`);
+      return;
+    }
+  }
+
+  const btn = document.getElementById('wiSubmitBtn');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/admin', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword, action: 'add-word', word }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      wiShowError(data.error || '추가 실패');
+      return;
+    }
+
+    wiAddToChain(word);
+    wiState.usedWords.push(word);
+    wiState.isFirstWord = false;
+    wiState.count++;
+    document.getElementById('wiCount').textContent = wiState.count;
+
+    const required = getRequiredChars(word);
+    wiState.requiredChars = required;
+    wiUpdateRequiredBar(required);
+
+    input.value = '';
+    showToast(`"${word}" 추가 완료`);
+  } catch {
+    wiShowError('서버 오류가 발생했습니다.');
+  } finally {
+    btn.disabled = false;
+    input.focus();
   }
 }
 

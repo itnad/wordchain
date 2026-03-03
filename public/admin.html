@@ -89,6 +89,7 @@
   <div class="toolbar">
     <button class="btn-tab active" id="tabRejected" onclick="switchTab('rejected')">오답 집계</button>
     <button class="btn-tab" id="tabChallenges" onclick="switchTab('challenges')">이의 제기</button>
+    <button class="btn-tab" id="tabWordInput" onclick="switchTab('word-input')">단어 입력</button>
     <span class="toolbar-sub" id="wordCount"></span>
     <button class="btn-refresh" id="refreshBtn">새로고침</button>
   </div>
@@ -129,6 +130,38 @@
         <tbody id="challengeTableBody"></tbody>
       </table>
       <div class="empty hidden" id="challengeEmptyMsg">이의 제기된 단어가 없습니다.</div>
+    </div>
+  </div>
+  <!-- 단어 입력 챌린지 -->
+  <div id="panelWordInput" style="display:none">
+    <div class="table-wrap">
+      <div class="wi-stats">
+        이번 세션 추가: <strong id="wiCount">0</strong> 단어
+      </div>
+
+      <!-- 다음 시작 글자 -->
+      <div class="required-bar wi-required-bar" id="wiRequiredBar" style="opacity:0.4">
+        <span class="required-label">다음 시작 글자</span>
+        <div class="required-chars" id="wiRequiredCharsDisplay"></div>
+      </div>
+
+      <!-- 입력된 단어 체인 -->
+      <div class="wi-chain" id="wiChain"></div>
+
+      <!-- 입력창 -->
+      <div class="wi-input-row">
+        <input
+          type="text"
+          id="wiWordInput"
+          class="wi-word-input"
+          placeholder="3글자 명사 입력..."
+          maxlength="6"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button class="btn-approve wi-submit-btn" id="wiSubmitBtn">추가</button>
+      </div>
+      <div class="error-text hidden" id="wiError"></div>
     </div>
   </div>
 </section>

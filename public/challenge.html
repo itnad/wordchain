@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>솔로 챌린지 · 끝말잇기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="screen" id="challengeScreen">
+    <header class="game-header">
+      <div class="header-left">
+        <a href="/" class="btn-icon" title="홈">←</a>
+        <span class="game-title">솔로 챌린지</span>
+      </div>
+      <div class="header-center">
+        <span class="player-nickname" id="playerNicknameBadge"></span>
+      </div>
+      <div class="header-right">
+        <span class="turn-badge" id="streakBadge">0단어</span>
+        <span class="best-badge" id="bestBadge">최고 0</span>
+        <button class="btn-icon btn-danger" id="resetBtn" title="재시작">↺</button>
+      </div>
+    </header>
+
+    <!-- 필수 시작 글자 -->
+    <div class="required-bar" id="requiredBar" style="opacity:0.4">
+      <span class="required-label">시작 글자</span>
+      <div class="required-chars" id="requiredCharsDisplay"></div>
+    </div>
+
+    <!-- 체인 -->
+    <div class="chain-container" id="chainContainer">
+      <div class="chain-start-hint" id="chainStartHint">
+        첫 번째 단어를 입력하세요
+      </div>
+    </div>
+
+    <!-- 입력 영역 -->
+    <div class="input-area" id="inputArea">
+      <div class="process-log hidden" id="processLog"></div>
+      <div class="error-msg hidden" id="errorMsg"></div>
+      <div class="input-row">
+        <input
+          type="text"
+          id="wordInput"
+          class="word-input"
+          placeholder="3글자 명사 입력..."
+          maxlength="6"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+        >
+        <button class="btn-submit" id="submitBtn">입력</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 단어 정보 / 이의 제기 모달 -->
+  <div class="modal-overlay hidden" id="wordInfoModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-word-title" id="modalWord"></span>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-definitions" id="modalDefinitions"></div>
+      <div class="modal-footer">
+        <p class="modal-challenge-hint">이 단어가 잘못 쓰였다고 생각하나요?</p>
+        <button class="btn-challenge" id="challengeBtn">이의 제기</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="version.js"></script>
+  <script src="challenge.js"></script>
+</body>
+</html>

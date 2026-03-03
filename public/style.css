@@ -225,6 +225,97 @@ html, body {
 }
 .admin-link:hover { color: var(--text-dim); }
 
+.card-footer-links {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.challenge-link {
+  font-size: 0.7rem;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: 0.5px;
+  transition: opacity 0.15s;
+}
+.challenge-link:hover { opacity: 0.7; }
+
+/* ===== Challenge Screen ===== */
+#challengeScreen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.best-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+/* ===== Admin Word Input Panel ===== */
+.wi-stats {
+  padding: 12px 0 8px;
+  font-size: 0.85rem;
+  color: var(--dim, #8888aa);
+}
+.wi-stats strong {
+  color: var(--accent, #00ffa3);
+  font-size: 1rem;
+}
+
+.wi-required-bar {
+  margin: 8px 0;
+}
+
+.wi-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0;
+  min-height: 44px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.wi-badge {
+  display: inline-block;
+  background: rgba(0,255,163,0.08);
+  border: 1px solid rgba(0,255,163,0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.wi-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wi-word-input {
+  flex: 1;
+  background: var(--panel, #1a1a35);
+  border: 1px solid var(--border, #2a2a4a);
+  border-radius: 6px;
+  color: var(--text, #e0e0f0);
+  font-size: 1rem;
+  padding: 10px 14px;
+  outline: none;
+}
+.wi-word-input:focus { border-color: var(--accent, #00ffa3); }
+
+.wi-submit-btn {
+  white-space: nowrap;
+}
+
 /* ===== Game Screen ===== */
 #gameScreen {
   display: flex;
