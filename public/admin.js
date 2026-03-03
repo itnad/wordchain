@@ -79,8 +79,15 @@ async function login() {
     adminPassword = pw;
     loginSection.style.display = 'none';
     mainSection.style.display  = 'block';
-    const data = await res.json();
-    renderTable(data.words ?? []);
+
+    // URL 해시로 초기 탭 결정 (#word-input, #challenges, 기본=rejected)
+    const hash = location.hash.replace('#', '');
+    if (hash === 'word-input' || hash === 'challenges') {
+      switchTab(hash);
+    } else {
+      const data = await res.json();
+      renderTable(data.words ?? []);
+    }
   } catch {
     loginError.textContent = '서버 오류가 발생했습니다.';
     loginError.classList.remove('hidden');
