@@ -576,6 +576,28 @@ html, body {
 .btn-submit:active { transform: translateY(0); }
 .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
+/* Process log */
+.process-log {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  font-size: 0.7rem;
+  font-family: 'Consolas', 'D2Coding', monospace;
+  padding: 5px 10px;
+  margin-bottom: 6px;
+  background: rgba(13, 13, 26, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+}
+
+.log-step { white-space: nowrap; }
+.log-ok  { color: var(--accent); }
+.log-err { color: var(--error); }
+.log-dim { color: var(--text-dim); }
+.log-arr { color: var(--border); margin: 0 3px; font-size: 0.8rem; }
+
 /* Error */
 .error-msg {
   font-size: 0.85rem;

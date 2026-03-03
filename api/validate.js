@@ -18,8 +18,13 @@ async function checkStdict(word) {
   url.searchParams.set('type_search', 'exact');
   url.searchParams.set('req_type', 'json');
 
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`stdict HTTP ${res.status}`);
+  let res;
+  try {
+    res = await fetch(url.toString());
+  } catch (netErr) {
+    throw new Error(`네트워크 연결 실패: ${netErr.message}`);
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText || '서버 오류'}`);
 
   const text = await res.text();
   if (!text || text.trim() === '') {
@@ -92,30 +97,44 @@ export default async function handler(req, res) {
   const firstChar = chars[0];
   const lastChar  = chars[chars.length - 1];
 
+  const steps = [];
+
   // 1. Supabase 캐시 확인
-  const { data: cached } = await supabase
+  const { data: cached, error: cacheError } = await supabase
     .from('words')
     .select('*')
     .eq('word', trimmed)
     .maybeSingle();
 
-  if (cached) {
+  if (cacheError) {
+    steps.push({ label: 'DB', ok: false, detail: `DB오류 ${cacheError.code ?? ''}`.trim() });
+    // DB 오류 시에도 사전 API 시도
+  } else if (cached) {
+    steps.push({ label: 'DB', ok: true, detail: '캐시 확인' });
     if (!cached.is_valid) {
       await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
-      return res.json({ valid: false, reason: NOT_IN_DICT_MSG });
+      return res.json({ valid: false, reason: NOT_IN_DICT_MSG, steps });
     }
     if (!allowPersonNames && cached.is_person_name) {
-      return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.' });
+      return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.', steps });
     }
     if (!allowPlaceNames && cached.is_place_name) {
-      return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.' });
+      return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.', steps });
     }
-    return res.json({ valid: true, word: trimmed, fromCache: true });
+    return res.json({ valid: true, word: trimmed, fromCache: true, steps });
+  } else {
+    steps.push({ label: 'DB', ok: null, detail: '캐시 없음' });
   }
 
   // 2. 표준국어대사전 API 확인
   try {
     const result = await checkStdict(trimmed);
+
+    steps.push({
+      label: '사전API',
+      ok:     result.isValid,
+      detail: result.isValid ? '명사 등재됨' : '미등재 단어',
+    });
 
     await supabase.from('words').upsert({
       word: trimmed,
@@ -129,22 +148,24 @@ export default async function handler(req, res) {
 
     if (!result.isValid) {
       await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
-      return res.json({ valid: false, reason: NOT_IN_DICT_MSG });
+      return res.json({ valid: false, reason: NOT_IN_DICT_MSG, steps });
     }
     if (!allowPersonNames && result.isPersonName) {
-      return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.' });
+      return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.', steps });
     }
     if (!allowPlaceNames && result.isPlaceName) {
-      return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.' });
+      return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.', steps });
     }
 
-    return res.json({ valid: true, word: trimmed, fromCache: false });
+    return res.json({ valid: true, word: trimmed, fromCache: false, steps });
 
   } catch (err) {
     console.error('validate error:', err);
+    steps.push({ label: '사전API', ok: false, detail: err.message.slice(0, 60) });
     return res.status(503).json({
       valid: false,
-      reason: '단어 검증 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+      reason: `단어 검증 중 오류가 발생했습니다: ${err.message.slice(0, 80)}`,
+      steps,
     });
   }
 }

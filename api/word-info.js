@@ -30,10 +30,8 @@ export default async function handler(req, res) {
         const senseArr = Array.isArray(senses) ? senses : [senses];
         for (const sense of senseArr) {
           if (sense?.definition) {
-            definitions.push({
-              pos:        sense.pos ?? item.pos ?? '',
-              definition: sense.definition,
-            });
+            const pos = sense.pos ?? item.pos ?? '';
+            definitions.push(pos ? `[${pos}] ${sense.definition}` : sense.definition);
           }
         }
       }

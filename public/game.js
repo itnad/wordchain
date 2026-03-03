@@ -115,6 +115,7 @@ const ingamePlaceNames   = $('ingamePlaceNames');
 const rankingToggleBtn   = $('rankingToggleBtn');
 const rankingPanel       = $('rankingPanel');
 const rankingList        = $('rankingList');
+const processLog         = $('processLog');
 
 // Helper to switch screens
 function showScreen(screenToShow) {
@@ -269,6 +270,7 @@ function resetGameState() {
 
   setInputEnabled(true);
   hideError();
+  hideProcessLog();
   wordInput.value = '';
   wordInput.focus();
 }
@@ -312,6 +314,7 @@ async function handleSubmit() {
   if (!raw) return;
 
   hideError();
+  hideProcessLog();
 
   const chars = [...raw];
   if (chars.length !== 3) {
@@ -359,12 +362,15 @@ async function handleSubmit() {
     return;
   }
 
+  if (result.steps) showProcessLog(result.steps);
+
   if (!result.valid) {
     showError(result.reason || '유효하지 않은 단어입니다.');
     setInputEnabled(true);
     return;
   }
 
+  hideProcessLog();
   addToChain(raw, 'user', result.fromCache);
   state.usedWords.push(raw);
   state.isFirstWord = false;
@@ -487,6 +493,21 @@ function showError(msg) {
 function hideError() {
   errorMsg.classList.add('hidden');
   errorMsg.textContent = '';
+}
+
+// ===== 처리 로그 =====
+function showProcessLog(steps) {
+  if (!processLog || !steps?.length) return;
+  processLog.innerHTML = steps.map(s => {
+    const cls  = s.ok === true ? 'log-ok' : s.ok === false ? 'log-err' : 'log-dim';
+    const icon = s.ok === true ? '✓' : s.ok === false ? '✗' : '–';
+    return `<span class="log-step ${cls}">[${s.label}] ${icon} ${s.detail}</span>`;
+  }).join('<span class="log-arr">›</span>');
+  processLog.classList.remove('hidden');
+}
+
+function hideProcessLog() {
+  if (processLog) processLog.classList.add('hidden');
 }
 
 function setInputEnabled(enabled) {
