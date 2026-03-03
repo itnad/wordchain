@@ -20,7 +20,11 @@ export default async function handler(req, res) {
       ms: Date.now() - start,
     };
   } catch (err) {
-    sdictResult = { error: err.message };
+    sdictResult = {
+      error:   err.message,
+      cause:   err.cause?.message ?? err.cause?.code ?? null,
+      code:    err.cause?.code ?? null,
+    };
   }
 
   return res.json({
