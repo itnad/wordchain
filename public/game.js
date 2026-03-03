@@ -1,1 +1,1 @@
-function aiTurn(previousWord) { ... } catch (error) { showAiLoading(false); showGameOver(`AI 응답 실패: ${error.message}`, 'player_win'); return; }
+function aiTurn(previousWord) { ... } catch (error) { showAiLoading(false); showGameOver(`AI 응답 실패: ${error.message} - ${error.stack}`, 'player_win'); return; }
