@@ -105,6 +105,7 @@ const requiredBar        = $('requiredBar');
 const wordInput          = $('wordInput');
 const submitBtn          = $('submitBtn');
 const errorMsg           = $('errorMsg');
+const processLog         = $('processLog'); // NEW: Reference to the process log div
 const aiLoading          = $('aiLoading');
 const turnBadge          = $('turnBadge');
 const resetBtn           = $('resetBtn');
@@ -122,6 +123,33 @@ function showScreen(screenToShow) {
     screen.classList.add('hidden');
   });
   screenToShow.classList.remove('hidden');
+}
+
+// NEW: Process log management
+const MAX_LOG_MESSAGES = 3; // Keep last 3 messages
+
+function updateProcessLog(message, isError = false) {
+  processLog.classList.remove('hidden');
+  const logItem = document.createElement('div');
+  logItem.className = `log-item${isError ? ' error' : ''}`;
+  logItem.textContent = message;
+
+  // Prepend new message to keep latest at top
+  if (processLog.firstChild) {
+    processLog.insertBefore(logItem, processLog.firstChild);
+  } else {
+    processLog.appendChild(logItem);
+  }
+
+  // Remove oldest messages if over limit
+  while (processLog.children.length > MAX_LOG_MESSAGES) {
+    processLog.removeChild(processLog.lastChild);
+  }
+}
+
+function clearProcessLog() {
+  processLog.innerHTML = '';
+  processLog.classList.add('hidden');
 }
 
 // ===== 초기화 =====
@@ -262,6 +290,7 @@ function resetGameState() {
 
   setInputEnabled(true);
   hideError();
+  clearProcessLog(); // Clear logs on game reset
   wordInput.value = '';
   wordInput.focus();
 }
@@ -308,6 +337,9 @@ async function handleSubmit() {
   }
 
   hideError();
+  clearProcessLog(); // Clear logs at the start of a new submission
+
+  updateProcessLog(`단어 검증 시작: "${raw}"`);
 
   const validationLog = [];
   let isValidClientSide = true;
@@ -317,10 +349,19 @@ async function handleSubmit() {
 
   // 1. 단어 길이 검증
   if (chars.length !== 3) {
-    validationLog.push('❌ 단어 길이 검증: 3글자 단어만 입력 가능합니다.');
-    isValidClientSide = false;
-  } else {
-    validationLog.push('✅ 단어 길이 검증: (3글자)');
+    showError('정확히 3글자 단어만 입력할 수 있습니다.');
+    updateProcessLog('단어 길이 검증 실패: 3글자가 아닙니다.', true);
+    return;
+  }
+  if (!chars.every(c => /[가-힣]/.test(c))) {
+    showError('한글 단어만 입력할 수 있습니다.');
+    updateProcessLog('단어 형식 검증 실패: 한글 단어가 아닙니다.', true);
+    return;
+  }
+  if (state.usedWords.includes(raw)) {
+    showError('이미 사용된 단어입니다.');
+    updateProcessLog('단어 사용 이력 검증 실패: 이미 사용된 단어입니다.', true);
+    return;
   }
 
   // 2. 한글 여부 검증
@@ -344,10 +385,9 @@ async function handleSubmit() {
     const allowed = state.requiredChars.map(r => r.char);
     if (!allowed.includes(chars[0])) {
       const display = state.requiredChars.map(r => `'${r.char}'`).join(' 또는 ');
-      validationLog.push(`❌ 시작 글자 검증: '${chars[0]}'(으)로 시작할 수 없습니다. ${display}(으)로 시작해야 합니다.`);
-      isValidClientSide = false;
-    } else {
-      validationLog.push(`✅ 시작 글자 검증: ('${chars[0]}'으로 시작)`);
+      showError(`${display}(으)로 시작하는 단어를 입력해야 합니다.`);
+      updateProcessLog(`시작 글자 검증 실패: '${chars[0]}'은(는) 허용되지 않습니다.`, true);
+      return;
     }
   } else if (isValidClientSide && state.isFirstWord) {
     validationLog.push('✅ 시작 글자 검증: (첫 단어이므로 제한 없음)');
@@ -359,12 +399,13 @@ async function handleSubmit() {
     setInputEnabled(true);
     return;
   }
-
+  updateProcessLog('클라이언트 측 유효성 검사 통과.');
   setInputEnabled(false);
   validationLog.push('➡️ 서버 단어 유효성 검증 시작...');
 
   let result;
   try {
+    updateProcessLog('서버에 단어 유효성 검사 요청 중...');
     const res = await fetch('/api/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -377,39 +418,24 @@ async function handleSubmit() {
         gameId:           state.currentGameId,
       }),
     });
-
-    // HTTP 오류 상태 코드 (4xx, 5xx 등) 처리
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ message: '응답 본문에 오류 메시지 없음' }));
-      validationLog.push(`❌ 서버 응답 오류: ${res.status} ${res.statusText}`);
-      validationLog.push(`   상세: ${errorData.message || '알 수 없는 서버 오류가 발생했습니다.'}`);
-      showError(validationLog);
-      setInputEnabled(true);
-      return;
-    }
-
+    updateProcessLog('서버 응답 수신. 결과 확인 중...');
     result = await res.json();
-  } catch (error) {
-    // 네트워크 오류 또는 JSON 파싱 오류 처리
-    validationLog.push('❌ 네트워크 통신 실패: 서버에 연결할 수 없습니다.');
-    validationLog.push(`   상세: ${error.message || '알 수 없는 네트워크 오류'}`);
-    showError(validationLog);
+  } catch {
+    showError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+    updateProcessLog('네트워크 통신 실패. 서버에 연결할 수 없습니다.', true);
     setInputEnabled(true);
     return;
   }
 
   // 서버 측 유효성 검증 결과 처리
   if (!result.valid) {
-    validationLog.push('❌ 서버 단어 유효성 검증: 실패');
-    validationLog.push(`   이유: ${result.reason || '유효하지 않은 단어입니다.'}`);
-    showError(validationLog);
+    showError(result.reason || '유효하지 않은 단어입니다.');
+    updateProcessLog(`단어 유효성 검사 실패: ${result.reason || '서버가 유효하지 않은 단어로 판단.'}`, true);
     setInputEnabled(true);
     return;
   }
 
-  validationLog.push('✅ 서버 단어 유효성 검증: 성공');
-  // console.log(validationLog); // For debugging success flow
-
+  updateProcessLog('단어 유효성 검사 최종 통과. 게임 진행.');
   addToChain(raw, 'user', result.fromCache);
   state.usedWords.push(raw);
   state.isFirstWord = false;
@@ -429,9 +455,13 @@ async function aiTurn(previousWord) {
   updateRequiredBar(required);
 
   showAiLoading(true);
+  clearProcessLog(); // Clear logs for AI turn
+  updateProcessLog('AI 차례 시작. 단어 탐색 중...');
+
 
   let result;
   try {
+    updateProcessLog('AI에게 단어 생성 요청 중...');
     const res = await fetch('/api/ai-turn', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -442,10 +472,12 @@ async function aiTurn(previousWord) {
         allowPlaceNames:  state.options.allowPlaceNames,
       }),
     });
+    updateProcessLog('AI 응답 수신. 단어 확인 중...');
     result = await res.json();
   } catch {
     showAiLoading(false);
     showGameOver('네트워크 오류로 AI가 응답하지 못했습니다. AI 패배!', 'player_win');
+    updateProcessLog('네트워크 통신 실패. AI 서비스에 연결할 수 없습니다.', true);
     return;
   }
 
@@ -453,9 +485,11 @@ async function aiTurn(previousWord) {
 
   if (!result.word || result.surrender) {
     showGameOver('AI가 단어를 찾지 못했습니다. 플레이어 승리!', 'player_win');
+    updateProcessLog('AI 단어 생성 실패. 적합한 단어를 찾지 못했습니다.', true);
     return;
   }
 
+  updateProcessLog(`AI 단어 선정 완료: "${result.word}".`);
   addToChain(result.word, 'ai', result.fromCache);
   state.usedWords.push(result.word);
   state.turns++;
