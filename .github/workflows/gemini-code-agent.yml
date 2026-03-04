@@ -2,18 +2,15 @@ name: Gemini Code Agent
 
 on:
   issues:
-    types: [labeled] # opened를 제거
+    types: [labeled]
 
-# 동일 이슈에 대해 여러 번 실행될 경우 중복 방지
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   gemini-code-agent:
-    if: |
-      contains(github.event.issue.labels.*.name, 'ai') ||
-      startsWith(github.event.issue.title, '[AI]')
+    if: contains(github.event.issue.labels.*.name, 'ai')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,21 +29,12 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        # 최신 google-genai 라이브러리 설치
         run: pip install google-genai
 
       - name: Collect repository files
         run: |
-          find . \
-            -type f \( \
-              -name "*.py" -o -name "*.js" -o -name "*.ts" -o \
-              -name "*.jsx" -o -name "*.tsx" -o -name "*.html" -o \
-              -name "*.css" -o -name "*.json" -o -name "*.md" \
-            \) \
-            ! -path "./.git/*" \
-            ! -path "./node_modules/*" \
-            ! -path "./.github/*" \
-            > /tmp/file_list.txt || true
+          find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.html" -o -name "*.json" -o -name "*.md" \) \
+          ! -path "./.git/*" ! -path "./node_modules/*" ! -path "./.github/*" > /tmp/file_list.txt || true
             
       - name: Run Gemini Code Agent
         id: gemini_agent
@@ -61,114 +49,83 @@ jobs:
           import json
           from google import genai
           from google.genai import types
+
+          # 1. 고성능 모델 전용 클라이언트 설정
+          # 최신 모델(3.1/2.0 Pro) 인식을 위해 v1alpha를 사용합니다.
+          client = genai.Client(
+              api_key=os.environ["GEMINI_API_KEY"],
+              http_options={'api_version': 'v1alpha'}
+          )
           
-          # 1. 클라이언트 및 모델 설정
-          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-          MODEL_ID = "gemini-3-flash" 
+          # [모델 선택 전략]
+          # 1순위: gemini-2.0-pro-exp-0205 (현재 코드 품질 최강)
+          # 2순위: gemini-3.1-pro (스크린샷에 나타난 최신 모델)
+          MODEL_ID = "gemini-2.0-pro-exp-0205" 
 
           system_instruction = (
-              "너는 세계 최고의 시니어 리액트 및 웹 개발자다. GitHub Issue를 분석하여 코드를 수정하라.\n"
-              "1. 보존 규칙: 한국어 음절 분리, 두음법칙 등 고도의 한글 로직은 절대 파괴하지 말고 그대로 유지하라.\n"
-              "2. 형식 규칙: 반드시 순수한 JSON 객체로만 응답하라. 마크다운 코드 블록(```json)을 사용하지 마라.\n"
-              "3. 품질 규칙: 수정된 코드는 즉시 실행 가능해야 하며, 가독성이 높아야 한다.\n"
-              "4. 일관성: 파일의 기존 코딩 스타일(들여쓰기, 변수 명명 규칙 등)을 따르라."
+              "너는 세계 최고의 시니어 리액트 및 알고리즘 개발자다.\n"
+              "1. 보존: 한국어 음절 분리, 두음법칙 등 고도의 한글 처리 로직은 절대 건드리지 마라.\n"
+              "2. 추론: 코드를 수정하기 전 논리적 모순이 없는지 체계적으로 분석하라.\n"
+              "3. 형식: 반드시 순수한 JSON만 응답하라. (No Markdown blocks)"
           )
 
           issue_title = os.environ["ISSUE_TITLE"]
           issue_body = os.environ.get("ISSUE_BODY", "(no body)")
-          issue_number = os.environ["ISSUE_NUMBER"]
           
           repo_files = {}
-          try:
-              with open("/tmp/file_list.txt") as f:
-                  paths = [p.strip() for p in f if p.strip()]
-          except: paths = []
+          with open("/tmp/file_list.txt") as f:
+              paths = [p.strip() for p in f if p.strip()]
 
-          MAX_CHARS = 100000
-          total = 0
           for path in paths:
               try:
-                  with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                      content = fh.read()
-                  if total + len(content) > MAX_CHARS: break
-                  repo_files[path] = content
-                  total += len(content)
+                  with open(path, "r", encoding="utf-8") as fh:
+                      repo_files[path] = fh.read()
               except: pass
 
-          files_section = "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in repo_files.items())
+          files_context = "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in repo_files.items())
 
           prompt = (
-              f"Analyze GitHub Issue #{issue_number} and modify the code accordingly.\n\n"
-              f"### ISSUE TITLE\n{issue_title}\n\n"
-              f"### ISSUE BODY\n{issue_body}\n\n"
-              f"### REPOSITORY CONTEXT\n{files_section}\n\n"
-              "--- \n"
-              "TASK: Respond with a JSON object containing 'analysis', 'changes' (list of path/action/content/reason), and 'summary'."
+              f"Analyze Issue #{os.environ['ISSUE_NUMBER']}: {issue_title}\n"
+              f"Details: {issue_body}\n\n"
+              f"Files Context:\n{files_context}\n\n"
+              "Task: Return JSON {analysis, changes: [{path, action, content, reason}], summary}"
           )
 
-          # 2. 신규 SDK 문법으로 콘텐츠 생성
+          # 2. 콘텐츠 생성
           response = client.models.generate_content(
               model=MODEL_ID,
               contents=prompt,
               config=types.GenerateContentConfig(
                   system_instruction=system_instruction,
                   temperature=0.1,
-                  top_p=0.95,
-                  max_output_tokens=20000,
-                  response_mime_type="application/json" # JSON 응답 강제 설정
+                  response_mime_type="application/json"
               )
           )
           
-          # 응답 정제 및 파싱
-          try:
-              # 신규 SDK는 .parsed를 통해 바로 dict 접근이 가능할 수 있음
-              result = response.parsed if response.parsed else json.loads(response.text)
-          except:
-              # 폴백: 텍스트에서 JSON 추출
-              raw = response.text.strip()
-              if "```json" in raw:
-                  raw = raw.split("```json")[1].split("```")[0].strip()
-              result = json.loads(raw)
+          result = response.parsed if response.parsed else json.loads(response.text)
 
+          # 파일 반영 로직
           for change in result.get("changes", []):
               path = change["path"].lstrip("./")
-              if change["action"] == "delete":
-                  if os.path.exists(path): os.remove(path)
-              else:
-                  os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-                  with open(path, "w", encoding="utf-8") as fh: fh.write(change["content"])
+              os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+              with open(path, "w", encoding="utf-8") as fh: 
+                  fh.write(change["content"])
 
+          # 결과 전송
           with open(os.environ["GITHUB_ENV"], "a") as ef:
-              ef.write(f"COMMIT_MSG={result.get('summary', 'AI code update')}\n")
+              ef.write(f"COMMIT_MSG={result.get('summary', 'AI fix')}\n")
               ef.write(f"GEMINI_ANALYSIS<<EOF\n{result.get('analysis', '')}\nEOF\n")
-          with open("/tmp/changes.json", "w") as cf:
-              json.dump(result.get("changes", []), cf, ensure_ascii=False)
           PYEOF
           python3 /tmp/agent.py
 
       - name: Commit and push safely
-        id: commit_push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
           git add -A
-          if git diff --cached --quiet; then
-            echo "HAS_CHANGES=false" >> $GITHUB_ENV
-          else
+          if ! git diff --cached --quiet; then
             git commit -m "🤖 [Issue #${{ github.event.issue.number }}] ${{ env.COMMIT_MSG }}"
-            
-            SUCCESS=false
-            for i in {1..3}; do
-              if git pull --rebase -X theirs origin main && git push origin main; then
-                SUCCESS=true
-                break
-              fi
-              echo "Push rejected. Retrying in 5s..."
-              sleep 5
-            done
-            
-            if [ "$SUCCESS" = false ]; then exit 1; fi
+            git pull --rebase -X theirs origin main && git push origin main
             echo "HAS_CHANGES=true" >> $GITHUB_ENV
           fi
 
@@ -178,20 +135,11 @@ jobs:
         env:
           HAS_CHANGES: ${{ env.HAS_CHANGES }}
           GEMINI_ANALYSIS: ${{ env.GEMINI_ANALYSIS }}
-          COMMIT_MSG: ${{ env.COMMIT_MSG }}
-          JOB_STATUS: ${{ job.status }}
         with:
           script: |
-            const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
-            let body = '';
-            if (JOB_STATUS === 'success') {
-              body = `## ✅ gemini-3-flash 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
-              body += HAS_CHANGES === 'true' 
-                ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
-                : `> ✨ 변경 사항이 없어 종료되었습니다.`;
-            } else {
-              body = `## ❌ 작업 실패\n\nGit 충돌 또는 설정 오류가 발생했습니다. Actions 로그를 확인해 주세요.`;
-            }
+            const { HAS_CHANGES, GEMINI_ANALYSIS } = process.env;
+            const body = `## 🧠 Gemini High-Level Analysis\n${GEMINI_ANALYSIS}\n\n` + 
+                         (HAS_CHANGES === 'true' ? '> ✅ 코드가 성공적으로 수정되었습니다.' : '> ℹ️ 변경 사항이 없습니다.');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
