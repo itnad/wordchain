@@ -146,15 +146,59 @@ async function init() {
   // 4. 저장된 이름이 있다면 입력창에 넣어주고 프리뷰 갱신
   if (savedName) {
     displayNameInput.value = savedName;
-    
+
     // input 이벤트를 강제로 발생시켜 generateNickname이 실행되게 함
     const event = new Event('input', { bubbles: true });
     displayNameInput.dispatchEvent(event);
-    
+
     // 버튼 활성화
     nicknameConfirmBtn.disabled = false;
   }
+
+  // 5. 홈 랭킹 로드 (비동기, 독립적)
+  loadHomeRanking();
 }
+
+// ===== 홈 랭킹 =====
+function formatRankTime(iso) {
+  if (!iso) return '';
+  const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+async function loadHomeRanking() {
+  const body = $('homeRankingBody');
+  if (!body) return;
+
+  try {
+    const res = await fetch('/api/ranking');
+    const { ranking } = await res.json();
+
+    if (!ranking || ranking.length === 0) {
+      body.innerHTML = '<div class="home-ranking-empty">아직 오늘의 기록이 없어요 👋</div>';
+      return;
+    }
+
+    const myName = localStorage.getItem('wc_display_name') || '';
+    const medals = ['🥇', '🥈', '🥉'];
+
+    body.innerHTML = ranking.map(r => {
+      const isMine = myName && r.display_name === myName;
+      const pos    = r.rank <= 3 ? medals[r.rank - 1] : r.rank;
+      const time   = formatRankTime(r.ended_at);
+      return `<div class="home-ranking-row${isMine ? ' mine' : ''}">
+        <span class="hrank-pos">${pos}</span>
+        <span class="hrank-name">${r.display_name}${isMine ? ' ★' : ''}</span>
+        <span class="hrank-score">${r.player_word_count}단어</span>
+        <span class="hrank-time">${time}</span>
+      </div>`;
+    }).join('');
+  } catch {
+    body.innerHTML = '<div class="home-ranking-empty">랭킹을 불러올 수 없습니다.</div>';
+  }
+}
+
+document.getElementById('homeRankingRefresh')?.addEventListener('click', loadHomeRanking);
 
 // ===== 닉네임 화면 이벤트 =====
 displayNameInput.addEventListener('input', () => {

@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabase
       .from('game_sessions')
-      .select('nickname, display_name, player_word_count')
+      .select('nickname, display_name, player_word_count, ended_at')
       .eq('result', 'player_win')
       .gte('started_at', todayStart)
       .order('player_word_count', { ascending: false })
@@ -36,6 +36,7 @@ export default async function handler(req, res) {
         nickname:          row.nickname,
         display_name:      row.display_name,
         player_word_count: row.player_word_count,
+        ended_at:          row.ended_at,
       })),
     });
   }
