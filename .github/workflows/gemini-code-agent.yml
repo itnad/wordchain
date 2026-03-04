@@ -60,7 +60,9 @@ jobs:
           import os
           import json
           from google import genai
-          from google.genai import types# 1. 클라이언트 및 모델 설정
+          from google.genai import types
+          
+          # 1. 클라이언트 및 모델 설정
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
           MODEL_ID = "gemini-1.5-pro" # 안정적인 할당량을 위해 1.5 Pro 사용
 
