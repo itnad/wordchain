@@ -188,7 +188,7 @@ jobs:
             const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
             let body = '';
             if (JOB_STATUS === 'success') {
-              body = `## ✅ Gemini 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
+              body = `## ✅ gemini-3.1-pro-preview 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
               body += HAS_CHANGES === 'true' 
                 ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
                 : `> ✨ 변경 사항이 없어 종료되었습니다.`;
