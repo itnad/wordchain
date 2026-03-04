@@ -7,9 +7,9 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0d0d1a; --card: #141428; --panel: #1a1a35;
-      --border: #2a2a4a; --text: #e0e0f0; --dim: #8888aa;
-      --accent: #00ffa3; --error: #ff4f6a; --warn: #ffb347;
+      --bg: #111318; --card: #1c1e28; --panel: #242838;
+      --border: #2e3248; --text: #eeeef3; --dim: #8690aa;
+      --accent: #4f85ff; --error: #f87171; --warn: #fbbf24;
       --radius: 10px;
     }
     body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
@@ -24,7 +24,7 @@
     .login-box h2 { font-size: 1rem; color: var(--dim); text-align: center; }
     .login-box input { width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 1rem; padding: 10px 14px; outline: none; }
     .login-box input:focus { border-color: var(--accent); }
-    .btn-login { width: 100%; padding: 12px; background: var(--accent); color: #000; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; }
+    .btn-login { width: 100%; padding: 12px; background: var(--accent); color: #fff; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; }
     .error-text { color: var(--error); font-size: 0.85rem; text-align: center; }
 
     /* Main */
@@ -39,8 +39,8 @@
     .table-wrap { overflow-x: auto; padding: 20px; }
     table { width: 100%; border-collapse: collapse; }
     th { background: var(--panel); color: var(--dim); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-    td { padding: 10px 14px; border-bottom: 1px solid rgba(42,42,74,0.5); vertical-align: middle; }
-    tr:hover td { background: rgba(26,26,53,0.5); }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,72,0.5); vertical-align: middle; }
+    tr:hover td { background: rgba(36,40,56,0.5); }
 
     .word-cell { font-size: 1.1rem; font-weight: 700; letter-spacing: 1px; }
     .count-cell { font-weight: 700; color: var(--warn); }
@@ -51,23 +51,49 @@
     .status-rejected { color: var(--error); font-weight: 600; }
 
     .action-cell { display: flex; gap: 6px; }
-    .btn-approve { padding: 5px 12px; background: rgba(0,255,163,0.1); border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
-    .btn-approve:hover { background: rgba(0,255,163,0.2); }
-    .btn-reject  { padding: 5px 12px; background: rgba(255,79,106,0.1); border: 1px solid var(--error); border-radius: 5px; color: var(--error); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
-    .btn-reject:hover  { background: rgba(255,79,106,0.2); }
+    .btn-approve { padding: 5px 12px; background: rgba(79,133,255,0.1); border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-approve:hover { background: rgba(79,133,255,0.2); }
+    .btn-reject  { padding: 5px 12px; background: rgba(248,113,113,0.1); border: 1px solid var(--error); border-radius: 5px; color: var(--error); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-reject:hover  { background: rgba(248,113,113,0.2); }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .btn-tab { padding: 6px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--dim); cursor: pointer; font-size: 0.85rem; }
-    .btn-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,163,0.08); }
-    .btn-dismiss { padding: 5px 12px; background: rgba(0,255,163,0.1); border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
-    .btn-dismiss:hover { background: rgba(0,255,163,0.2); }
-    .btn-uphold  { padding: 5px 12px; background: rgba(255,79,106,0.1); border: 1px solid var(--error);  border-radius: 5px; color: var(--error);  font-weight: 600; cursor: pointer; font-size: 0.8rem; }
-    .btn-uphold:hover  { background: rgba(255,79,106,0.2); }
+    .btn-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(79,133,255,0.08); }
+    .btn-dismiss { padding: 5px 12px; background: rgba(79,133,255,0.1); border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-dismiss:hover { background: rgba(79,133,255,0.2); }
+    .btn-uphold  { padding: 5px 12px; background: rgba(248,113,113,0.1); border: 1px solid var(--error);  border-radius: 5px; color: var(--error);  font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+    .btn-uphold:hover  { background: rgba(248,113,113,0.2); }
 
     .empty { text-align: center; color: var(--dim); padding: 40px; }
     .loading { text-align: center; color: var(--dim); padding: 40px; }
     .toast { position: fixed; bottom: 24px; right: 24px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 0.9rem; z-index: 100; animation: fadeIn 0.2s ease; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ===== Word Input Panel ===== */
+    .wi-stats { padding: 12px 0 8px; font-size: 0.85rem; color: var(--dim); }
+    .wi-stats strong { color: var(--accent); font-size: 1rem; }
+    .wi-existing-info { font-size: 0.8rem; color: var(--dim); }
+    .wi-chain { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0; min-height: 44px; max-height: 160px; overflow-y: auto; }
+    .wi-badge { display: inline-block; background: rgba(79,133,255,0.1); border: 1px solid rgba(79,133,255,0.3); border-radius: 6px; padding: 4px 10px; font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; color: var(--accent); }
+    .wi-badge-existing { background: rgba(255,255,255,0.03); border-color: var(--border); color: var(--dim); opacity: 0.55; }
+    .wi-existing-label { font-size: 0.65rem; color: var(--dim); margin-left: 3px; vertical-align: middle; }
+    .wi-input-row { display: flex; gap: 8px; margin-top: 12px; }
+    .wi-word-input { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 1rem; padding: 10px 14px; outline: none; }
+    .wi-word-input:focus { border-color: var(--accent); }
+    .wi-submit-btn { white-space: nowrap; }
+    .wi-summary { margin-top: 16px; padding: 12px 14px; background: rgba(79,133,255,0.05); border: 1px solid rgba(79,133,255,0.15); border-radius: 8px; }
+    .wi-summary-title { font-size: 0.75rem; font-weight: 600; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .wi-summary-words { display: flex; flex-wrap: wrap; gap: 5px; }
+    .wi-badge-sm { font-size: 0.8rem; padding: 2px 8px; }
+
+    /* Required char bar (word-input panel) */
+    .required-bar { display: flex; align-items: center; gap: 10px; padding: 10px 0; min-height: 48px; }
+    .required-label { font-size: 0.75rem; color: var(--dim); white-space: nowrap; }
+    .required-chars { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .req-char { display: inline-flex; align-items: center; gap: 4px; font-size: 1.3rem; font-weight: 800; color: var(--accent); background: rgba(79,133,255,0.1); border: 1.5px solid var(--accent); border-radius: 8px; padding: 4px 14px; }
+    .req-char.dueum { color: #a07efa; background: rgba(160,126,250,0.1); border-color: #a07efa; }
+    .req-char .dueum-badge { font-size: 0.55rem; font-weight: 600; color: #a07efa; background: rgba(160,126,250,0.2); border-radius: 4px; padding: 1px 4px; }
+    .req-or { font-size: 0.75rem; color: var(--dim); }
   </style>
 </head>
 <body>
