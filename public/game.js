@@ -567,28 +567,11 @@ const modalDefinitions = $('modalDefinitions');
 const modalClose       = $('modalClose');
 const challengeBtn     = $('challengeBtn');
 
-async function openWordInfo(word) {
+function openWordInfo(word) {
   modalWord.textContent = word;
-  modalDefinitions.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
-  challengeBtn.disabled = true;
-
+  modalDefinitions.innerHTML = '<p class="no-definition">사전 연동 준비 중입니다.</p>';
+  challengeBtn.disabled = false;
   wordInfoModal.classList.remove('hidden');
-
-  try {
-    const res = await fetch(`/api/word-info?word=${encodeURIComponent(word)}`);
-    const data = await res.json();
-
-    if (data.definitions && data.definitions.length > 0) {
-      modalDefinitions.innerHTML = data.definitions.map(def => `<p class="definition-item">${def}</p>`).join('');
-    } else {
-      modalDefinitions.innerHTML = '<p class="no-definition">정의를 찾을 수 없습니다.</p>';
-    }
-    challengeBtn.disabled = false;
-  } catch (e) {
-    console.error('Failed to fetch word info:', e);
-    modalDefinitions.innerHTML = '<p class="no-definition">단어 정보를 불러오지 못했습니다.</p>';
-    challengeBtn.disabled = true;
-  }
 }
 
 modalClose.addEventListener('click', () => {
