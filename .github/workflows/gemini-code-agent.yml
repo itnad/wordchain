@@ -57,10 +57,7 @@ jobs:
               http_options={'api_version': 'v1alpha'}
           )
           
-          # [모델 선택 전략]
-          # 1순위: gemini-2.0-pro-exp-0205 (현재 코드 품질 최강)
-          # 2순위: gemini-3.1-pro (스크린샷에 나타난 최신 모델)
-          MODEL_ID = "gemini-2.0-pro-exp-0205" 
+          MODEL_ID = "gemini-3.1-pro" 
 
           system_instruction = (
               "너는 세계 최고의 시니어 리액트 및 알고리즘 개발자다.\n"
@@ -138,7 +135,7 @@ jobs:
         with:
           script: |
             const { HAS_CHANGES, GEMINI_ANALYSIS } = process.env;
-            const body = `## 🧠 Gemini High-Level Analysis\n${GEMINI_ANALYSIS}\n\n` + 
+            const body = `## 🧠 gemini-3.1-pro Analysis\n${GEMINI_ANALYSIS}\n\n` + 
                          (HAS_CHANGES === 'true' ? '> ✅ 코드가 성공적으로 수정되었습니다.' : '> ℹ️ 변경 사항이 없습니다.');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
