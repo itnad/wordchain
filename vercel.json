@@ -2,5 +2,10 @@
   "framework": null,
   "devCommand": null,
   "outputDirectory": "public",
-  "regions": ["icn1"]
+  "rewrites": [
+    { "source": "/api/game-start",    "destination": "/api/game-session?action=start" },
+    { "source": "/api/game-end",      "destination": "/api/game-session?action=end" },
+    { "source": "/api/ranking",       "destination": "/api/game-session?action=ranking" },
+    { "source": "/api/nickname-words","destination": "/api/game-session?action=nickname-words" }
+  ]
 }
