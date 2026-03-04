@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Rebase를 위해 전체 히스토리 필요
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,7 +32,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-generativeai
+        # 최신 google-genai 라이브러리 설치
+        run: pip install google-genai
 
       - name: Collect repository files
         run: |
@@ -58,12 +59,11 @@ jobs:
           cat > /tmp/agent.py << 'PYEOF'
           import os
           import json
-          import google.generativeai as genai
-    
-          # 1. API 및 모델 설정
-          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    
-          # [시스템 지시문 세팅]: 모델의 페르소나와 제약 사항을 정의
+          from google import genai
+          from google.genai import types# 1. 클라이언트 및 모델 설정
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          MODEL_ID = "gemini-1.5-pro" # 안정적인 할당량을 위해 1.5 Pro 사용
+
           system_instruction = (
               "너는 세계 최고의 시니어 리액트 및 웹 개발자다. GitHub Issue를 분석하여 코드를 수정하라.\n"
               "1. 보존 규칙: 한국어 음절 분리, 두음법칙 등 고도의 한글 로직은 절대 파괴하지 말고 그대로 유지하라.\n"
@@ -71,20 +71,7 @@ jobs:
               "3. 품질 규칙: 수정된 코드는 즉시 실행 가능해야 하며, 가독성이 높아야 한다.\n"
               "4. 일관성: 파일의 기존 코딩 스타일(들여쓰기, 변수 명명 규칙 등)을 따르라."
           )
-    
-          # [생성 설정 세팅]: 논리적 정확도를 위해 온도를 낮춤
-          generation_config = {
-              "temperature": 0.1,  # 낮을수록 일관되고 논리적인 코드 생성
-              "top_p": 0.95,
-              "max_output_tokens": 20000, # 긴 코드 수정을 위해 넉넉히 설정
-          }
-    
-          model = genai.GenerativeModel(
-              model_name="gemini-3.1-pro-preview",
-              system_instruction=system_instruction,
-              generation_config=generation_config
-          )
-          
+
           issue_title = os.environ["ISSUE_TITLE"]
           issue_body = os.environ.get("ISSUE_BODY", "(no body)")
           issue_number = os.environ["ISSUE_NUMBER"]
@@ -94,9 +81,8 @@ jobs:
               with open("/tmp/file_list.txt") as f:
                   paths = [p.strip() for p in f if p.strip()]
           except: paths = []
-    
-          # 파일 수집 (토큰 제한 내에서 최대한 수집)
-          MAX_CHARS = 100000 # 3.1 Pro의 넓은 컨텍스트를 활용해 수집량 증가
+
+          MAX_CHARS = 100000
           total = 0
           for path in paths:
               try:
@@ -106,10 +92,9 @@ jobs:
                   repo_files[path] = content
                   total += len(content)
               except: pass
-    
+
           files_section = "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in repo_files.items())
-    
-          # [프롬프트 전략]: 맥락 정보를 명확히 구분하여 전달
+
           prompt = (
               f"Analyze GitHub Issue #{issue_number} and modify the code accordingly.\n\n"
               f"### ISSUE TITLE\n{issue_title}\n\n"
@@ -118,19 +103,31 @@ jobs:
               "--- \n"
               "TASK: Respond with a JSON object containing 'analysis', 'changes' (list of path/action/content/reason), and 'summary'."
           )
-    
-          response = model.generate_content(prompt)
+
+          # 2. 신규 SDK 문법으로 콘텐츠 생성
+          response = client.models.generate_content(
+              model=MODEL_ID,
+              contents=prompt,
+              config=types.GenerateContentConfig(
+                  system_instruction=system_instruction,
+                  temperature=0.1,
+                  top_p=0.95,
+                  max_output_tokens=20000,
+                  response_mime_type="application/json" # JSON 응답 강제 설정
+              )
+          )
           
           # 응답 정제 및 파싱
-          raw = response.text.strip()
-          # 간혹 포함될 수 있는 마크다운 태그 강제 제거
-          if raw.startswith("```"):
-              raw = raw.split("\n", 1)[-1].rsplit("\n", 1)[0]
-          if raw.startswith("json"):
-              raw = raw[4:]
-          
-          result = json.loads(raw.strip())
-    
+          try:
+              # 신규 SDK는 .parsed를 통해 바로 dict 접근이 가능할 수 있음
+              result = response.parsed if response.parsed else json.loads(response.text)
+          except:
+              # 폴백: 텍스트에서 JSON 추출
+              raw = response.text.strip()
+              if "```json" in raw:
+                  raw = raw.split("```json")[1].split("```")[0].strip()
+              result = json.loads(raw)
+
           for change in result.get("changes", []):
               path = change["path"].lstrip("./")
               if change["action"] == "delete":
@@ -138,7 +135,7 @@ jobs:
               else:
                   os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
                   with open(path, "w", encoding="utf-8") as fh: fh.write(change["content"])
-    
+
           with open(os.environ["GITHUB_ENV"], "a") as ef:
               ef.write(f"COMMIT_MSG={result.get('summary', 'AI code update')}\n")
               ef.write(f"GEMINI_ANALYSIS<<EOF\n{result.get('analysis', '')}\nEOF\n")
@@ -159,8 +156,6 @@ jobs:
           else
             git commit -m "🤖 [Issue #${{ github.event.issue.number }}] ${{ env.COMMIT_MSG }}"
             
-            # 수동 수정본(Remote)이 있을 경우 Gemini의 작업을 그 위로 Rebase
-            # 충돌 발생 시 Gemini의 작업(-X theirs)을 우선하여 덮어씀
             SUCCESS=false
             for i in {1..3}; do
               if git pull --rebase -X theirs origin main && git push origin main; then
@@ -188,7 +183,7 @@ jobs:
             const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
             let body = '';
             if (JOB_STATUS === 'success') {
-              body = `## ✅ gemini-3.1-pro-preview 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
+              body = `## ✅ gemini-1.5-pro 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
               body += HAS_CHANGES === 'true' 
                 ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
                 : `> ✨ 변경 사항이 없어 종료되었습니다.`;
