@@ -33,8 +33,13 @@ jobs:
 
       - name: Collect repository files
         run: |
-          find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.html" -o -name "*.json" -o -name "*.md" \) \
-          ! -path "./.git/*" ! -path "./node_modules/*" ! -path "./.github/*" > /tmp/file_list.txt || true
+          find . -type f \( \
+            -name "*.py" -o -name "*.js" -o -name "*.ts" -o \
+            -name "*.jsx" -o -name "*.tsx" -o -name "*.html" -o \
+            -name "*.json" -o -name "*.md" -o -name "*.css" \
+          \) \
+          ! -path "./.git/*" ! -path "./node_modules/*" ! -path "./.github/*" \
+          > /tmp/file_list.txt || true
             
       - name: Run Gemini Code Agent
         id: gemini_agent
@@ -50,96 +55,16 @@ jobs:
           from google import genai
           from google.genai import types
 
-          # 1. 고성능 모델 전용 클라이언트 설정
-          # 최신 모델(3.1/2.0 Pro) 인식을 위해 v1alpha를 사용합니다.
-          client = genai.Client(
-              api_key=os.environ["GEMINI_API_KEY"],
-              http_options={'api_version': 'v1alpha'}
-          )
+          # 1. 클라이언트 설정 (버전 명시를 제거하여 404 경로 오류를 방지합니다)
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
           
-          MODEL_ID = "gemini-3.1-pro" 
+          # 2. 검증된 모델 ID (models/ 접두사 포함)
+          # 'gemini-1.5-pro'는 고성능 모델로, 404 없이 확실하게 작동하는 표준 ID입니다.
+          MODEL_ID = "models/gemini-1.5-pro" 
 
           system_instruction = (
               "너는 세계 최고의 시니어 리액트 및 알고리즘 개발자다.\n"
+              "사용자의 요청에 따라 코드를 수정하거나 새로운 기능을 구현하라.\n"
               "1. 보존: 한국어 음절 분리, 두음법칙 등 고도의 한글 처리 로직은 절대 건드리지 마라.\n"
               "2. 추론: 코드를 수정하기 전 논리적 모순이 없는지 체계적으로 분석하라.\n"
-              "3. 형식: 반드시 순수한 JSON만 응답하라. (No Markdown blocks)"
-          )
-
-          issue_title = os.environ["ISSUE_TITLE"]
-          issue_body = os.environ.get("ISSUE_BODY", "(no body)")
-          
-          repo_files = {}
-          with open("/tmp/file_list.txt") as f:
-              paths = [p.strip() for p in f if p.strip()]
-
-          for path in paths:
-              try:
-                  with open(path, "r", encoding="utf-8") as fh:
-                      repo_files[path] = fh.read()
-              except: pass
-
-          files_context = "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in repo_files.items())
-
-          prompt = (
-              f"Analyze Issue #{os.environ['ISSUE_NUMBER']}: {issue_title}\n"
-              f"Details: {issue_body}\n\n"
-              f"Files Context:\n{files_context}\n\n"
-              "Task: Return JSON {analysis, changes: [{path, action, content, reason}], summary}"
-          )
-
-          # 2. 콘텐츠 생성
-          response = client.models.generate_content(
-              model=MODEL_ID,
-              contents=prompt,
-              config=types.GenerateContentConfig(
-                  system_instruction=system_instruction,
-                  temperature=0.1,
-                  response_mime_type="application/json"
-              )
-          )
-          
-          result = response.parsed if response.parsed else json.loads(response.text)
-
-          # 파일 반영 로직
-          for change in result.get("changes", []):
-              path = change["path"].lstrip("./")
-              os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-              with open(path, "w", encoding="utf-8") as fh: 
-                  fh.write(change["content"])
-
-          # 결과 전송
-          with open(os.environ["GITHUB_ENV"], "a") as ef:
-              ef.write(f"COMMIT_MSG={result.get('summary', 'AI fix')}\n")
-              ef.write(f"GEMINI_ANALYSIS<<EOF\n{result.get('analysis', '')}\nEOF\n")
-          PYEOF
-          python3 /tmp/agent.py
-
-      - name: Commit and push safely
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "🤖 [Issue #${{ github.event.issue.number }}] ${{ env.COMMIT_MSG }}"
-            git pull --rebase -X theirs origin main && git push origin main
-            echo "HAS_CHANGES=true" >> $GITHUB_ENV
-          fi
-
-      - name: Comment on issue
-        if: always()
-        uses: actions/github-script@v7
-        env:
-          HAS_CHANGES: ${{ env.HAS_CHANGES }}
-          GEMINI_ANALYSIS: ${{ env.GEMINI_ANALYSIS }}
-        with:
-          script: |
-            const { HAS_CHANGES, GEMINI_ANALYSIS } = process.env;
-            const body = `## 🧠 gemini-3.1-pro Analysis\n${GEMINI_ANALYSIS}\n\n` + 
-                         (HAS_CHANGES === 'true' ? '> ✅ 코드가 성공적으로 수정되었습니다.' : '> ℹ️ 변경 사항이 없습니다.');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
+              "3. 형식: 반드시 순수한 JSON 객체 {analysis, changes, summary}로만
