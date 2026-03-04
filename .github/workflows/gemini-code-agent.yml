@@ -64,7 +64,7 @@ jobs:
           
           # 1. 클라이언트 및 모델 설정
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-          MODEL_ID = "gemini-1.5-pro" # 안정적인 할당량을 위해 1.5 Pro 사용
+          MODEL_ID = "gemini-3-flash" 
 
           system_instruction = (
               "너는 세계 최고의 시니어 리액트 및 웹 개발자다. GitHub Issue를 분석하여 코드를 수정하라.\n"
@@ -185,7 +185,7 @@ jobs:
             const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
             let body = '';
             if (JOB_STATUS === 'success') {
-              body = `## ✅ gemini-1.5-pro 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
+              body = `## ✅ gemini-3-flash 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
               body += HAS_CHANGES === 'true' 
                 ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
                 : `> ✨ 변경 사항이 없어 종료되었습니다.`;
