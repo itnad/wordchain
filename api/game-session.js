@@ -15,16 +15,10 @@ export default async function handler(req, res) {
 
   // ── GET: ranking ──────────────────────────────────────────────
   if (action === 'ranking') {
-    const now = new Date();
-    const kstNow  = new Date(now.getTime() + 9 * 3600_000);
-    const today   = kstNow.toISOString().slice(0, 10);
-    const todayStart = new Date(today + 'T00:00:00+09:00').toISOString();
-
     const { data, error } = await supabase
       .from('game_sessions')
       .select('nickname, display_name, player_word_count, ended_at')
       .eq('result', 'player_win')
-      .gte('started_at', todayStart)
       .order('player_word_count', { ascending: false })
       .limit(10);
 

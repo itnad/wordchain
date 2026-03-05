@@ -175,7 +175,7 @@ async function loadHomeRanking() {
     const { ranking } = await res.json();
 
     if (!ranking || ranking.length === 0) {
-      body.innerHTML = '<div class="home-ranking-empty">아직 오늘의 기록이 없어요 👋</div>';
+      body.innerHTML = '<div class="home-ranking-empty">아직 기록이 없어요 👋</div>';
       return;
     }
 
