@@ -41,6 +41,18 @@
     }
     .total-count { font-size: 0.85rem; color: var(--dim); }
     .total-count strong { color: var(--accent); }
+    .sort-btns { display: flex; gap: 6px; }
+    .btn-sort {
+      padding: 5px 12px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--dim); cursor: pointer; font-size: 0.82rem; font-weight: 600;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .btn-sort:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-sort.active {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(79,133,255,0.1);
+    }
     .btn-refresh {
       margin-left: auto; padding: 6px 14px;
       background: var(--panel); border: 1px solid var(--border);
@@ -84,6 +96,10 @@
 
 <div class="toolbar">
   <span class="total-count" id="totalCount">불러오는 중...</span>
+  <div class="sort-btns">
+    <button class="btn-sort active" data-sort="rank">순위순</button>
+    <button class="btn-sort" data-sort="date">최근일시순</button>
+  </div>
   <button class="btn-refresh" id="refreshBtn">새로고침</button>
 </div>
 
@@ -104,6 +120,9 @@
 </div>
 
 <script>
+  let allData = [];
+  let currentSort = 'rank';
+
   function formatDatetime(iso) {
     if (!iso) return '-';
     const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
@@ -118,18 +137,51 @@
   const MEDALS = ['🥇', '🥈', '🥉'];
   const RANK_CLS = ['rank-gold', 'rank-silver', 'rank-bronze'];
 
-  async function load() {
-    const stateMsg  = document.getElementById('stateMsg');
-    const rankTable = document.getElementById('rankTable');
+  function renderTable(data) {
     const rankBody  = document.getElementById('rankBody');
+    const rankTable = document.getElementById('rankTable');
+    const stateMsg  = document.getElementById('stateMsg');
+
+    rankBody.innerHTML = data.map((r, i) => {
+      const dispRank = currentSort === 'rank' ? r.rank : i + 1;
+      const isMedal  = r.rank <= 3;
+      const rankCell = isMedal && currentSort === 'rank'
+        ? `<span class="${RANK_CLS[r.rank - 1]}">${MEDALS[r.rank - 1]}</span>`
+        : `<span class="rank-num">${dispRank}</span>`;
+      return `<tr>
+        <td class="rank-cell">${rankCell}</td>
+        <td class="name-cell">${r.display_name}</td>
+        <td class="ip-cell">${r.ip_address || '-'}</td>
+        <td class="score-cell">${r.player_word_count}<span style="font-size:0.75rem;font-weight:400;color:var(--dim)"> 단어</span></td>
+        <td class="date-cell">${formatDatetime(r.ended_at)}</td>
+      </tr>`;
+    }).join('');
+
+    stateMsg.style.display = 'none';
+    rankTable.style.display = '';
+  }
+
+  function applySort() {
+    const sorted = [...allData];
+    if (currentSort === 'rank') {
+      sorted.sort((a, b) => b.player_word_count - a.player_word_count);
+    } else {
+      sorted.sort((a, b) => new Date(b.ended_at) - new Date(a.ended_at));
+    }
+    renderTable(sorted);
+  }
+
+  async function load() {
+    const stateMsg   = document.getElementById('stateMsg');
+    const rankTable  = document.getElementById('rankTable');
     const totalCount = document.getElementById('totalCount');
 
-    stateMsg.textContent  = '불러오는 중...';
-    stateMsg.style.display = '';
+    stateMsg.textContent    = '불러오는 중...';
+    stateMsg.style.display  = '';
     rankTable.style.display = 'none';
 
     try {
-      const res  = await fetch('/api/ranking?all=1');
+      const res = await fetch('/api/ranking?all=1');
       const { ranking } = await res.json();
 
       if (!ranking || ranking.length === 0) {
@@ -138,28 +190,22 @@
         return;
       }
 
+      allData = ranking;
       totalCount.innerHTML = `총 <strong>${ranking.length}</strong>개`;
-
-      rankBody.innerHTML = ranking.map(r => {
-        const isMedal = r.rank <= 3;
-        const rankCell = isMedal
-          ? `<span class="${RANK_CLS[r.rank - 1]}">${MEDALS[r.rank - 1]}</span>`
-          : `<span class="rank-num">${r.rank}</span>`;
-        return `<tr>
-          <td class="rank-cell">${rankCell}</td>
-          <td class="name-cell">${r.display_name}</td>
-          <td class="ip-cell">${r.ip_address || '-'}</td>
-          <td class="score-cell">${r.player_word_count}<span style="font-size:0.75rem;font-weight:400;color:var(--dim)"> 단어</span></td>
-          <td class="date-cell">${formatDatetime(r.ended_at)}</td>
-        </tr>`;
-      }).join('');
-
-      stateMsg.style.display = 'none';
-      rankTable.style.display = '';
+      applySort();
     } catch {
       stateMsg.textContent = '랭킹을 불러올 수 없습니다.';
     }
   }
+
+  document.querySelectorAll('.btn-sort').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-sort').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSort = btn.dataset.sort;
+      applySort();
+    });
+  });
 
   document.getElementById('refreshBtn').addEventListener('click', load);
   load();
