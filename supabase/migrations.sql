@@ -175,3 +175,13 @@ LANGUAGE sql STABLE AS $$
   ORDER BY RANDOM()
   LIMIT 1;
 $$;
+
+-- ============================================================
+-- 8. words 테이블 killer_score 컬럼 추가
+-- ============================================================
+ALTER TABLE words
+  ADD COLUMN IF NOT EXISTS killer_score SMALLINT DEFAULT NULL;
+
+-- 컬럼 코멘트
+COMMENT ON COLUMN words.killer_score IS
+  '필살/희귀 점수. NULL=일반단어, 0=필살단어(이어지는 단어 없음), 1~3=희귀단어(이어지는 단어 수)';
