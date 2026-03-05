@@ -16,9 +16,12 @@ export default async function handler(req, res) {
   // ── GET: ranking ──────────────────────────────────────────────
   if (action === 'ranking') {
     const fetchAll = req.query.all === '1';
+    const fields = fetchAll
+      ? 'display_name, player_word_count, ended_at, ip_address'
+      : 'display_name, player_word_count, ended_at';
     let query = supabase
       .from('game_sessions')
-      .select('nickname, display_name, player_word_count, ended_at')
+      .select(fields)
       .eq('result', 'player_win')
       .order('player_word_count', { ascending: false });
     if (!fetchAll) query = query.limit(10);
@@ -29,10 +32,10 @@ export default async function handler(req, res) {
     return res.json({
       ranking: (data ?? []).map((row, i) => ({
         rank:              i + 1,
-        nickname:          row.nickname,
         display_name:      row.display_name,
         player_word_count: row.player_word_count,
         ended_at:          row.ended_at,
+        ...(fetchAll && { ip_address: row.ip_address }),
       })),
     });
   }
@@ -67,9 +70,13 @@ export default async function handler(req, res) {
 
     if (!player) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
 
+    const ip_address = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+      || req.headers['x-real-ip']
+      || '';
+
     const { data, error } = await supabase
       .from('game_sessions')
-      .insert({ session_id, nickname: player.nickname, display_name: player.display_name })
+      .insert({ session_id, nickname: player.nickname, display_name: player.display_name, ip_address })
       .select('id')
       .single();
 

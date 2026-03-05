@@ -65,10 +65,10 @@
     .rank-silver { color: var(--silver); }
     .rank-bronze { color: var(--bronze); }
 
-    .name-cell     { font-weight: 700; font-size: 0.95rem; }
-    .nickname-cell { color: var(--dim); font-size: 0.82rem; }
-    .score-cell    { font-weight: 800; color: var(--accent); font-size: 1rem; }
-    .date-cell     { color: var(--dim); font-size: 0.82rem; white-space: nowrap; }
+    .name-cell  { font-weight: 700; font-size: 0.95rem; }
+    .ip-cell    { color: var(--dim); font-size: 0.82rem; font-family: 'Consolas', monospace; }
+    .score-cell { font-weight: 800; color: var(--accent); font-size: 1rem; }
+    .date-cell  { color: var(--dim); font-size: 0.82rem; white-space: nowrap; }
 
     .state-msg { text-align: center; color: var(--dim); padding: 48px 20px; }
   </style>
@@ -94,7 +94,7 @@
       <tr>
         <th style="text-align:center">순위</th>
         <th>이름</th>
-        <th>닉네임</th>
+        <th>IP</th>
         <th>단어 수</th>
         <th>일시</th>
       </tr>
@@ -148,7 +148,7 @@
         return `<tr>
           <td class="rank-cell">${rankCell}</td>
           <td class="name-cell">${r.display_name}</td>
-          <td class="nickname-cell">${r.nickname ?? '-'}</td>
+          <td class="ip-cell">${r.ip_address || '-'}</td>
           <td class="score-cell">${r.player_word_count}<span style="font-size:0.75rem;font-weight:400;color:var(--dim)"> 단어</span></td>
           <td class="date-cell">${formatDatetime(r.ended_at)}</td>
         </tr>`;
