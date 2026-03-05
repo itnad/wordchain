@@ -71,6 +71,9 @@ const state = {
   currentGameId:  null,
   nicknameWords:  null,   // { adjectives, places }
 
+  // 모드
+  hellMode:       localStorage.getItem('wc_hell_mode') === '1',
+
   // 게임
   usedWords:      [],
   chain:          [],
@@ -84,6 +87,10 @@ const state = {
 
 // ===== DOM =====
 const $ = id => document.getElementById(id);
+
+const modeNormalBtn      = $('modeNormalBtn');
+const modeHellBtn        = $('modeHellBtn');
+const hellBadge          = $('hellBadge');
 
 const nicknameScreen     = $('nicknameScreen');
 const displayNameInput   = $('displayNameInput');
@@ -258,6 +265,9 @@ async function startGame() {
     playerNicknameBadge.className = 'player-nickname-badge';
   }
 
+  // 헬 모드 배지
+  hellBadge.classList.toggle('hidden', !state.hellMode);
+
   // 게임 시작 기록
   try {
     const res = await fetch('/api/game-start', {
@@ -418,6 +428,7 @@ async function aiFirstMove() {
         usedWords:        [],
         allowPersonNames: false,
         allowPlaceNames:  false,
+        hellMode:         state.hellMode,
       }),
     });
     result = await res.json();
@@ -474,6 +485,7 @@ async function aiTurn(previousWord) {
         usedWords:        state.usedWords,
         allowPersonNames: false,
         allowPlaceNames:  false,
+        hellMode:         state.hellMode,
       }),
     });
     result = await res.json();
@@ -729,6 +741,26 @@ if (window.visualViewport) {
 wordInput.addEventListener('input', () => {
   chainContainer.scrollTop = chainContainer.scrollHeight;
 });
+
+// ===== 모드 선택 =====
+function applyModeUI() {
+  modeNormalBtn.classList.toggle('active', !state.hellMode);
+  modeHellBtn.classList.toggle('active', state.hellMode);
+}
+
+modeNormalBtn.addEventListener('click', () => {
+  state.hellMode = false;
+  localStorage.setItem('wc_hell_mode', '0');
+  applyModeUI();
+});
+
+modeHellBtn.addEventListener('click', () => {
+  state.hellMode = true;
+  localStorage.setItem('wc_hell_mode', '1');
+  applyModeUI();
+});
+
+applyModeUI();
 
 // 앱 시작
 init();

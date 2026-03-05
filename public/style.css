@@ -952,6 +952,48 @@ html, body {
 .wi-summary-words { display: flex; flex-wrap: wrap; gap: 5px; }
 .wi-badge-sm { font-size: 0.8rem; padding: 2px 8px; }
 
+/* ===== Mode Selector ===== */
+.mode-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-mode {
+  flex: 1;
+  padding: 13px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-bg);
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-mode.active {
+  border-color: var(--accent);
+  background: rgba(118, 103, 245, 0.1);
+  color: var(--accent);
+}
+.btn-mode.hell.active {
+  border-color: var(--error);
+  background: rgba(247, 92, 124, 0.1);
+  color: var(--error);
+}
+
+/* ===== Hell Badge (game header) ===== */
+.hell-badge {
+  font-size: 0.73rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--error);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* ===== Surrender Button ===== */
 .btn-surrender {
   height: 52px;

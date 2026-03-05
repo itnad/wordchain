@@ -41,6 +41,12 @@
         </div>
       </div>
 
+      <!-- 게임 모드 선택 -->
+      <div class="mode-selector">
+        <button class="btn-mode active" id="modeNormalBtn">일반 모드</button>
+        <button class="btn-mode hell" id="modeHellBtn">🔥 헬 모드</button>
+      </div>
+
       <button class="btn-start" id="nicknameConfirmBtn" disabled>게임 시작</button>
       <div class="card-footer">
         <div class="version-tag"></div>
@@ -64,6 +70,7 @@
         <span class="player-nickname" id="playerNicknameBadge"></span>
       </div>
       <div class="header-right">
+        <span class="hell-badge hidden" id="hellBadge">🔥 헬</span>
         <span class="turn-badge" id="turnBadge">0턴</span>
         <button class="btn-icon btn-danger" id="resetBtn" title="재시작">↺</button>
       </div>

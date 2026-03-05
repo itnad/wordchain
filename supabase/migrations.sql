@@ -161,7 +161,8 @@ CREATE OR REPLACE FUNCTION get_random_ai_word(
   p_required_chars TEXT[],
   p_used_words     TEXT[],
   p_allow_person   BOOLEAN DEFAULT FALSE,
-  p_allow_place    BOOLEAN DEFAULT FALSE
+  p_allow_place    BOOLEAN DEFAULT FALSE,
+  p_hell_mode      BOOLEAN DEFAULT FALSE
 )
 RETURNS TABLE(word TEXT, first_char TEXT, last_char TEXT)
 LANGUAGE sql STABLE AS $$
@@ -172,9 +173,13 @@ LANGUAGE sql STABLE AS $$
     AND NOT (w.word = ANY(p_used_words))
     AND (p_allow_person OR NOT w.is_person_name)
     AND (p_allow_place  OR NOT w.is_place_name)
-  ORDER BY RANDOM()
+  ORDER BY
+    CASE WHEN p_hell_mode THEN COALESCE(w.killer_score, 999) ELSE 9999 END ASC,
+    RANDOM()
   LIMIT 1;
 $$;
+-- 헬 모드: killer_score ASC (0=필살단어 우선 → 1~3=희귀단어 → NULL=일반단어)
+-- 일반 모드: COALESCE 결과가 9999로 동일하므로 RANDOM() 만 유효
 
 -- ============================================================
 -- 8. words 테이블 killer_score 컬럼 추가
