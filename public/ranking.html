@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>전체 랭킹 · 끝말잇기</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #111318; --card: #1c1e28; --panel: #242838;
+      --border: #2e3248; --text: #eeeef3; --dim: #8690aa;
+      --accent: #4f85ff; --gold: #fbbf24; --silver: #94a3b8; --bronze: #c08040;
+      --radius: 10px;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      font-size: 14px; min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 1.2rem; font-weight: 800;
+      padding: 18px 20px; border-bottom: 1px solid var(--border);
+      background: var(--card);
+      display: flex; align-items: center; gap: 10px;
+    }
+    h1 .title-sub { font-size: 0.85rem; font-weight: 400; color: var(--dim); }
+    .btn-nav {
+      margin-left: auto; font-size: 0.8rem; font-weight: 600; color: var(--dim);
+      text-decoration: none; padding: 4px 10px;
+      border: 1px solid var(--border); border-radius: 6px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-nav:hover { color: var(--accent); border-color: var(--accent); }
+    .btn-nav + .btn-nav { margin-left: 6px; }
+
+    .toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      background: var(--card); flex-wrap: wrap;
+    }
+    .total-count { font-size: 0.85rem; color: var(--dim); }
+    .total-count strong { color: var(--accent); }
+    .btn-refresh {
+      margin-left: auto; padding: 6px 14px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-refresh:hover { border-color: var(--accent); }
+
+    .table-wrap { overflow-x: auto; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: var(--panel); color: var(--dim);
+      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 10px 14px; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(46,50,72,0.5); vertical-align: middle; }
+    tr:hover td { background: rgba(36,40,56,0.5); }
+
+    .rank-cell { font-size: 1.1rem; width: 48px; text-align: center; }
+    .rank-num  { font-weight: 800; color: var(--dim); }
+    .rank-gold   { color: var(--gold); }
+    .rank-silver { color: var(--silver); }
+    .rank-bronze { color: var(--bronze); }
+
+    .name-cell     { font-weight: 700; font-size: 0.95rem; }
+    .nickname-cell { color: var(--dim); font-size: 0.82rem; }
+    .score-cell    { font-weight: 800; color: var(--accent); font-size: 1rem; }
+    .date-cell     { color: var(--dim); font-size: 0.82rem; white-space: nowrap; }
+
+    .state-msg { text-align: center; color: var(--dim); padding: 48px 20px; }
+  </style>
+</head>
+<body>
+
+<h1>
+  🏆 전체 랭킹
+  <span class="title-sub">끝말잇기 역대 기록</span>
+  <a href="/admin.html" class="btn-nav">관리자</a>
+  <a href="/" class="btn-nav">← 게임으로</a>
+</h1>
+
+<div class="toolbar">
+  <span class="total-count" id="totalCount">불러오는 중...</span>
+  <button class="btn-refresh" id="refreshBtn">새로고침</button>
+</div>
+
+<div class="table-wrap">
+  <div class="state-msg" id="stateMsg">불러오는 중...</div>
+  <table id="rankTable" style="display:none">
+    <thead>
+      <tr>
+        <th style="text-align:center">순위</th>
+        <th>이름</th>
+        <th>닉네임</th>
+        <th>단어 수</th>
+        <th>일시</th>
+      </tr>
+    </thead>
+    <tbody id="rankBody"></tbody>
+  </table>
+</div>
+
+<script>
+  function formatDatetime(iso) {
+    if (!iso) return '-';
+    const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
+    const Y  = d.getUTCFullYear();
+    const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const da = String(d.getUTCDate()).padStart(2, '0');
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${Y}/${mo}/${da} ${hh}:${mm}`;
+  }
+
+  const MEDALS = ['🥇', '🥈', '🥉'];
+  const RANK_CLS = ['rank-gold', 'rank-silver', 'rank-bronze'];
+
+  async function load() {
+    const stateMsg  = document.getElementById('stateMsg');
+    const rankTable = document.getElementById('rankTable');
+    const rankBody  = document.getElementById('rankBody');
+    const totalCount = document.getElementById('totalCount');
+
+    stateMsg.textContent  = '불러오는 중...';
+    stateMsg.style.display = '';
+    rankTable.style.display = 'none';
+
+    try {
+      const res  = await fetch('/api/ranking?all=1');
+      const { ranking } = await res.json();
+
+      if (!ranking || ranking.length === 0) {
+        stateMsg.textContent = '아직 기록이 없습니다.';
+        totalCount.innerHTML = '총 <strong>0</strong>개';
+        return;
+      }
+
+      totalCount.innerHTML = `총 <strong>${ranking.length}</strong>개`;
+
+      rankBody.innerHTML = ranking.map(r => {
+        const isMedal = r.rank <= 3;
+        const rankCell = isMedal
+          ? `<span class="${RANK_CLS[r.rank - 1]}">${MEDALS[r.rank - 1]}</span>`
+          : `<span class="rank-num">${r.rank}</span>`;
+        return `<tr>
+          <td class="rank-cell">${rankCell}</td>
+          <td class="name-cell">${r.display_name}</td>
+          <td class="nickname-cell">${r.nickname ?? '-'}</td>
+          <td class="score-cell">${r.player_word_count}<span style="font-size:0.75rem;font-weight:400;color:var(--dim)"> 단어</span></td>
+          <td class="date-cell">${formatDatetime(r.ended_at)}</td>
+        </tr>`;
+      }).join('');
+
+      stateMsg.style.display = 'none';
+      rankTable.style.display = '';
+    } catch {
+      stateMsg.textContent = '랭킹을 불러올 수 없습니다.';
+    }
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', load);
+  load();
+</script>
+</body>
+</html>

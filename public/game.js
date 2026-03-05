@@ -163,7 +163,11 @@ async function init() {
 function formatRankTime(iso) {
   if (!iso) return '';
   const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${mo}/${da} ${hh}:${mm}`;
 }
 
 async function loadHomeRanking() {

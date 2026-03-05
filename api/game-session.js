@@ -15,12 +15,14 @@ export default async function handler(req, res) {
 
   // ── GET: ranking ──────────────────────────────────────────────
   if (action === 'ranking') {
-    const { data, error } = await supabase
+    const fetchAll = req.query.all === '1';
+    let query = supabase
       .from('game_sessions')
       .select('nickname, display_name, player_word_count, ended_at')
       .eq('result', 'player_win')
-      .order('player_word_count', { ascending: false })
-      .limit(10);
+      .order('player_word_count', { ascending: false });
+    if (!fetchAll) query = query.limit(10);
+    const { data, error } = await query;
 
     if (error) return res.status(500).json({ error: error.message });
 
