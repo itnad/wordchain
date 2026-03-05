@@ -451,6 +451,7 @@ async function aiFirstMove() {
 
   state.playerTurn = true;
   setInputEnabled(true);
+  wordInput.value = nextRequired[0].char;
   wordInput.focus();
 }
 
@@ -499,6 +500,7 @@ async function aiTurn(previousWord) {
 
   state.playerTurn = true;
   setInputEnabled(true);
+  wordInput.value = nextRequired[0].char;
   wordInput.focus();
 }
 
