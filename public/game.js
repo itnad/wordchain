@@ -552,6 +552,12 @@ function updateRequiredBar(required) {
     span.innerHTML = r.isDueum
       ? `${r.char} <span class="dueum-badge">두음</span>`
       : r.char;
+    span.style.cursor = 'pointer';
+    span.addEventListener('click', () => {
+      if (state.gameOver || !state.playerTurn) return;
+      wordInput.value = r.char;
+      wordInput.focus();
+    });
     requiredCharsDisplay.appendChild(span);
   });
 }
