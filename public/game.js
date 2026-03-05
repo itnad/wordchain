@@ -302,7 +302,7 @@ function resetGameState() {
 }
 
 async function resetGame() {
-  if (!confirm('게임을 다시 시작할까요?')) return;
+  if (!state.gameOver && !confirm('게임을 다시 시작할까요?')) return;
 
   // 새 게임 세션 시작
   try {
