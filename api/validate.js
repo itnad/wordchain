@@ -116,14 +116,43 @@ export default async function handler(req, res) {
       await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
       return res.json({ valid: false, reason: NOT_IN_DICT_MSG, steps });
     }
+    // 이의제기 중인 단어 확인
+    const { data: challenged } = await supabase
+      .from('word_challenges')
+      .select('id')
+      .eq('word', trimmed)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (challenged) {
+      steps.push({ label: '이의제기', ok: false, detail: '검토 중인 단어' });
+      return res.json({
+        valid: false,
+        reason: '이의제기중인 단어입니다. 일단은 사용을 보류하오니 양해 부탁드립니다.',
+        steps,
+      });
+    }
     steps.push({ label: 'DB', ok: true, detail: '유효한 단어(캐시됨)' });
     return res.json({ valid: true, word: trimmed, fromCache: true, steps });
   } else {
     steps.push({ label: 'DB', ok: null, detail: '캐시 없음' });
   }
 
-  // 2. DB에 없으면 임시 허용 (stdict는 Vercel에서 IP 차단됨)
-  //    로컬 seed 스크립트로 DB를 충분히 채운 후에는 이 경로가 드물게 발생
+  // 2. DB에 없으면 이의제기 여부 먼저 확인 후 임시 허용
+  const { data: challenged2 } = await supabase
+    .from('word_challenges')
+    .select('id')
+    .eq('word', trimmed)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (challenged2) {
+    steps.push({ label: '이의제기', ok: false, detail: '검토 중인 단어' });
+    return res.json({
+      valid: false,
+      reason: '이의제기중인 단어입니다. 일단은 사용을 보류하오니 양해 부탁드립니다.',
+      steps,
+    });
+  }
+
   steps.push({ label: 'DB', ok: null, detail: '미등록 – 임시 허용' });
   await supabase.from('words').upsert({
     word:           trimmed,

@@ -15,6 +15,14 @@ export default async function handler(req, res) {
   const { requiredChars, usedWords = [], allowPersonNames, allowPlaceNames } = req.body;
 
   try {
+    // 이의제기 중인 단어 목록 조회 (pending 상태)
+    const { data: challengedData } = await supabase
+      .from('word_challenges')
+      .select('word')
+      .eq('status', 'pending');
+    const challengedWords = new Set(challengedData?.map(c => c.word) ?? []);
+    const allExcluded = [...new Set([...usedWords, ...challengedWords])];
+
     // 첫 수 (requiredChars가 비어있음): RPC 우회 후 랜덤 단어 직접 조회
     if (!requiredChars || requiredChars.length === 0) {
       const { count } = await supabase
@@ -26,23 +34,28 @@ export default async function handler(req, res) {
 
       if (!count) return res.json({ word: null, surrender: true });
 
-      const offset = Math.floor(Math.random() * count);
-      const { data: firstData, error: firstError } = await supabase
-        .from('words')
-        .select('word, first_char, last_char')
-        .eq('is_valid', true)
-        .eq('is_person_name', false)
-        .eq('is_place_name', false)
-        .range(offset, offset);
+      // 이의제기 단어를 피해 최대 3회 시도
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const offset = Math.floor(Math.random() * count);
+        const { data: firstData, error: firstError } = await supabase
+          .from('words')
+          .select('word, first_char, last_char')
+          .eq('is_valid', true)
+          .eq('is_person_name', false)
+          .eq('is_place_name', false)
+          .range(offset, offset);
 
-      if (firstError || !firstData?.length) return res.json({ word: null, surrender: true });
-      return res.json({ word: firstData[0].word, fromCache: true });
+        if (!firstError && firstData?.length && !challengedWords.has(firstData[0].word)) {
+          return res.json({ word: firstData[0].word, fromCache: true });
+        }
+      }
+      return res.json({ word: null, surrender: true });
     }
 
-    // 이후 수: 기존 RPC 사용
+    // 이후 수: 기존 RPC 사용 (이의제기 단어를 usedWords에 포함해 제외)
     const { data, error } = await supabase.rpc('get_random_ai_word', {
       p_required_chars: requiredChars,
-      p_used_words:     usedWords,
+      p_used_words:     allExcluded,
       p_allow_person:   !!allowPersonNames,
       p_allow_place:    !!allowPlaceNames,
     });
