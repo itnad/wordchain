@@ -520,12 +520,12 @@ html, body {
 /* ===== Chain Container ===== */
 .chain-container {
   flex: 1;
+  min-height: 0;          /* flex 자식이 content 크기 이하로 축소되도록 허용 */
   overflow-y: auto;
   padding: 16px 16px 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }

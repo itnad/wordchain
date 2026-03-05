@@ -661,17 +661,26 @@ async function loadRanking() {
 }
 
 // ===== 모바일 키보드 대응 =====
-// 키보드가 올라오면 visualViewport.height가 줄어드는 것을 감지해
-// gameScreen 높이를 실제 보이는 영역에 맞게 동적 조정
+// visualViewport.height  : 키보드를 제외한 실제 보이는 높이
+// visualViewport.offsetTop: iOS Safari에서 레이아웃 뷰포트 대비 시각 뷰포트의 오프셋
+//   → 두 값 모두 반영해야 iOS에서 헤더가 위로 밀리는 현상을 막을 수 있음
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => {
+  const onViewportChange = () => {
     if (!gameScreen.classList.contains('hidden')) {
-      gameScreen.style.height = window.visualViewport.height + 'px';
-      // 최신 단어가 보이도록 체인 스크롤 유지
+      const vv = window.visualViewport;
+      gameScreen.style.top    = vv.offsetTop + 'px';
+      gameScreen.style.height = vv.height + 'px';
       chainContainer.scrollTop = chainContainer.scrollHeight;
     }
-  });
+  };
+  window.visualViewport.addEventListener('resize', onViewportChange);
+  window.visualViewport.addEventListener('scroll', onViewportChange);
 }
+
+// 타이핑 시작 시 체인 맨 아래로 복귀
+wordInput.addEventListener('input', () => {
+  chainContainer.scrollTop = chainContainer.scrollHeight;
+});
 
 // 앱 시작
 init();

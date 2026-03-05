@@ -340,11 +340,20 @@ challengeBtn.addEventListener('click', async () => {
 // ===== 모바일 키보드 대응 =====
 if (window.visualViewport) {
   const challengeScreen = $('challengeScreen');
-  window.visualViewport.addEventListener('resize', () => {
-    challengeScreen.style.height = window.visualViewport.height + 'px';
+  const onViewportChange = () => {
+    const vv = window.visualViewport;
+    challengeScreen.style.top    = vv.offsetTop + 'px';
+    challengeScreen.style.height = vv.height + 'px';
     chainContainer.scrollTop = chainContainer.scrollHeight;
-  });
+  };
+  window.visualViewport.addEventListener('resize', onViewportChange);
+  window.visualViewport.addEventListener('scroll', onViewportChange);
 }
+
+// 타이핑 시작 시 체인 맨 아래로 복귀
+wordInput.addEventListener('input', () => {
+  chainContainer.scrollTop = chainContainer.scrollHeight;
+});
 
 // ===== 시작 =====
 init();
