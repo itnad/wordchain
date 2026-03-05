@@ -77,7 +77,6 @@ const state = {
   requiredChars:  [],
   isFirstWord:    true,
   playerTurn:     true,
-  options: { allowPersonNames: false, allowPlaceNames: false },
   gameOver:       false,
   turns:          0,
   playerWordCount: 0,     // 플레이어가 이은 단어 수
@@ -91,31 +90,22 @@ const displayNameInput   = $('displayNameInput');
 const nicknamePreview    = $('nicknamePreview');
 const nicknameConfirmBtn = $('nicknameConfirmBtn');
 
-const setupScreen        = $('setupScreen');
-const allowPersonNames   = $('allowPersonNames');
-const allowPlaceNames    = $('allowPlaceNames');
-const startBtn           = $('startBtn');
-
-const gameScreen         = $('gameScreen');
-const playerNicknameBadge= $('playerNicknameBadge');
-const chainContainer     = $('chainContainer');
-const chainStartHint     = $('chainStartHint');
+const gameScreen           = $('gameScreen');
+const playerNicknameBadge  = $('playerNicknameBadge');
+const chainContainer       = $('chainContainer');
+const chainStartHint       = $('chainStartHint');
 const requiredCharsDisplay = $('requiredCharsDisplay');
-const requiredBar        = $('requiredBar');
-const wordInput          = $('wordInput');
-const submitBtn          = $('submitBtn');
-const errorMsg           = $('errorMsg');
-const aiLoading          = $('aiLoading');
-const turnBadge          = $('turnBadge');
-const resetBtn           = $('resetBtn');
-const settingsToggleBtn  = $('settingsToggleBtn');
-const ingameSettings     = $('ingameSettings');
-const ingamePersonNames  = $('ingamePersonNames');
-const ingamePlaceNames   = $('ingamePlaceNames');
-const rankingToggleBtn   = $('rankingToggleBtn');
-const rankingPanel       = $('rankingPanel');
-const rankingList        = $('rankingList');
-const processLog         = $('processLog');
+const requiredBar          = $('requiredBar');
+const wordInput            = $('wordInput');
+const submitBtn            = $('submitBtn');
+const errorMsg             = $('errorMsg');
+const aiLoading            = $('aiLoading');
+const turnBadge            = $('turnBadge');
+const resetBtn             = $('resetBtn');
+const rankingToggleBtn     = $('rankingToggleBtn');
+const rankingPanel         = $('rankingPanel');
+const rankingList          = $('rankingList');
+const processLog           = $('processLog');
 
 // Helper to switch screens
 function showScreen(screenToShow) {
@@ -252,24 +242,16 @@ async function confirmNickname() {
     localStorage.setItem('wc_display_name', data.display_name);
     localStorage.setItem('wc_nickname',     data.nickname);
 
-    showScreen(setupScreen);
+    await startGame();
   } catch (error) {
     console.error('Nickname confirmation failed:', error);
     nicknameConfirmBtn.disabled  = false;
-    nicknameConfirmBtn.textContent = '다음';
+    nicknameConfirmBtn.textContent = '게임 시작';
     alert(error.message || '서버 오류가 발생했습니다. 다시 시도해주세요.');
   }
 }
 
-// ===== 설정 화면 =====
-startBtn.addEventListener('click', startGame);
-
 async function startGame() {
-  state.options.allowPersonNames = allowPersonNames.checked;
-  state.options.allowPlaceNames  = allowPlaceNames.checked;
-  ingamePersonNames.checked = state.options.allowPersonNames;
-  ingamePlaceNames.checked  = state.options.allowPlaceNames;
-
   showScreen(gameScreen);
 
   // 닉네임 배지
@@ -345,14 +327,7 @@ function resetGame() {
 submitBtn.addEventListener('click', handleSubmit);
 wordInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSubmit(); });
 resetBtn.addEventListener('click', resetGame);
-settingsToggleBtn.addEventListener('click', () => ingameSettings.classList.toggle('hidden'));
 rankingToggleBtn.addEventListener('click', () => rankingPanel.classList.toggle('hidden'));
-ingamePersonNames.addEventListener('change', () => {
-  state.options.allowPersonNames = ingamePersonNames.checked;
-});
-ingamePlaceNames.addEventListener('change', () => {
-  state.options.allowPlaceNames = ingamePlaceNames.checked;
-});
 
 // ===== 입력 처리 =====
 async function handleSubmit() {
@@ -395,12 +370,10 @@ async function handleSubmit() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        word:             raw,
-        allowPersonNames: state.options.allowPersonNames,
-        allowPlaceNames:  state.options.allowPlaceNames,
-        sessionId:        state.sessionId,
-        nickname:         state.nickname,
-        gameId:           state.currentGameId,
+        word:      raw,
+        sessionId: state.sessionId,
+        nickname:  state.nickname,
+        gameId:    state.currentGameId,
       }),
     });
     result = await res.json();

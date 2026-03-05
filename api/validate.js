@@ -82,7 +82,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { word, allowPersonNames, allowPlaceNames, sessionId, nickname, gameId } = req.body;
+  const { word, sessionId, nickname, gameId } = req.body;
   if (!word) return res.json({ valid: false, reason: '단어를 입력해주세요.' });
 
   const trimmed = word.trim();
@@ -115,14 +115,6 @@ export default async function handler(req, res) {
       steps.push({ label: 'DB', ok: false, detail: '미등재 단어(캐시됨)' });
       await logRejected(trimmed, sessionId, nickname, gameId, 'not_in_dict');
       return res.json({ valid: false, reason: NOT_IN_DICT_MSG, steps });
-    }
-    if (!allowPersonNames && cached.is_person_name) {
-      steps.push({ label: 'DB', ok: false, detail: '인명(캐시됨)' });
-      return res.json({ valid: false, reason: '사람 이름은 현재 허용되지 않습니다.', steps });
-    }
-    if (!allowPlaceNames && cached.is_place_name) {
-      steps.push({ label: 'DB', ok: false, detail: '지명(캐시됨)' });
-      return res.json({ valid: false, reason: '지명은 현재 허용되지 않습니다.', steps });
     }
     steps.push({ label: 'DB', ok: true, detail: '유효한 단어(캐시됨)' });
     return res.json({ valid: true, word: trimmed, fromCache: true, steps });

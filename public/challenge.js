@@ -163,10 +163,8 @@ async function handleSubmit() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        word:             raw,
-        allowPersonNames: false,
-        allowPlaceNames:  false,
-        sessionId:        state.sessionId,
+        word:      raw,
+        sessionId: state.sessionId,
       }),
     });
     result = await res.json();

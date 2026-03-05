@@ -41,7 +41,7 @@
         </div>
       </div>
 
-      <button class="btn-start" id="nicknameConfirmBtn" disabled>다음</button>
+      <button class="btn-start" id="nicknameConfirmBtn" disabled>게임 시작</button>
       <div class="card-footer">
         <div class="version-tag"></div>
         <div class="card-footer-links">
@@ -53,55 +53,10 @@
     </div>
   </div>
 
-  <!-- 1단계: 설정 화면 -->
-  <div class="screen hidden" id="setupScreen">
-    <div class="setup-card">
-      <div class="logo">
-        <span class="logo-en">Infinite Word Chain</span>
-        <span class="logo-ko">무한 끝말잇기</span>
-      </div>
-
-      <div class="settings">
-        <h2 class="settings-title">게임 설정</h2>
-
-        <label class="toggle-row">
-          <span class="toggle-label">
-            <span class="toggle-icon">👤</span>
-            사람 이름 허용
-          </span>
-          <div class="toggle-wrap">
-            <input type="checkbox" id="allowPersonNames" class="toggle-input">
-            <span class="toggle-slider"></span>
-          </div>
-        </label>
-
-        <label class="toggle-row">
-          <span class="toggle-label">
-            <span class="toggle-icon">🗺️</span>
-            지명 허용
-          </span>
-          <div class="toggle-wrap">
-            <input type="checkbox" id="allowPlaceNames" class="toggle-input">
-            <span class="toggle-slider"></span>
-          </div>
-        </label>
-
-        <div class="rules">
-          <p>📌 3글자 한국어 명사만 허용</p>
-          <p>📌 두음법칙 적용 가능</p>
-          <p>📌 이미 사용된 단어 재사용 불가</p>
-        </div>
-      </div>
-
-      <button class="btn-start" id="startBtn">게임 시작</button>
-    </div>
-  </div>
-
-  <!-- 2단계: 게임 화면 -->
+  <!-- 게임 화면 -->
   <div class="screen hidden" id="gameScreen">
     <header class="game-header">
       <div class="header-left">
-        <button class="btn-icon" id="settingsToggleBtn" title="설정">⚙</button>
         <span class="game-title">끝말잇기</span>
       </div>
       <div class="header-center">
@@ -113,24 +68,6 @@
         <button class="btn-icon btn-danger" id="resetBtn" title="재시작">↺</button>
       </div>
     </header>
-
-    <!-- 인게임 설정 패널 -->
-    <div class="ingame-settings hidden" id="ingameSettings">
-      <label class="toggle-row-sm">
-        <span>👤 사람 이름</span>
-        <div class="toggle-wrap">
-          <input type="checkbox" id="ingamePersonNames" class="toggle-input">
-          <span class="toggle-slider"></span>
-        </div>
-      </label>
-      <label class="toggle-row-sm">
-        <span>🗺️ 지명</span>
-        <div class="toggle-wrap">
-          <input type="checkbox" id="ingamePlaceNames" class="toggle-input">
-          <span class="toggle-slider"></span>
-        </div>
-      </label>
-    </div>
 
     <!-- 랭킹 패널 -->
     <div class="ranking-panel hidden" id="rankingPanel">
