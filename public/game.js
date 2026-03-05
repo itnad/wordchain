@@ -271,6 +271,7 @@ async function startGame() {
   }
 
   resetGameState();
+  await aiFirstMove();
 }
 
 // ===== 게임 상태 초기화 =====
@@ -294,28 +295,30 @@ function resetGameState() {
   const banner = $('gameOverBanner');
   if (banner) banner.remove();
 
-  setInputEnabled(true);
+  setInputEnabled(false);
   hideError();
   hideProcessLog();
   wordInput.value = '';
-  wordInput.focus();
 }
 
-function resetGame() {
+async function resetGame() {
   if (!confirm('게임을 다시 시작할까요?')) return;
 
   // 새 게임 세션 시작
-  fetch('/api/game-start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: state.sessionId }),
-  }).then(r => r.json()).then(d => {
+  try {
+    const r = await fetch('/api/game-start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: state.sessionId }),
+    });
+    const d = await r.json();
     state.currentGameId = d.game_id ?? null;
-  }).catch(() => {
+  } catch {
     state.currentGameId = null;
-  });
+  }
 
   resetGameState();
+  await aiFirstMove();
 }
 
 // ===== 인게임 이벤트 =====
@@ -398,6 +401,59 @@ async function handleSubmit() {
   await aiTurn(raw);
 }
 
+// ===== AI 첫 번째 단어 =====
+async function aiFirstMove() {
+  setInputEnabled(false);
+  state.playerTurn = false;
+  showAiLoading(true);
+
+  let result;
+  try {
+    const res = await fetch('/api/ai-turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requiredChars:    [],
+        usedWords:        [],
+        allowPersonNames: false,
+        allowPlaceNames:  false,
+      }),
+    });
+    result = await res.json();
+  } catch {
+    // 네트워크 오류 시 플레이어가 먼저 입력
+    showAiLoading(false);
+    state.playerTurn = true;
+    setInputEnabled(true);
+    wordInput.focus();
+    return;
+  }
+
+  showAiLoading(false);
+
+  if (!result.word || result.surrender) {
+    // AI가 단어를 찾지 못하면 플레이어가 먼저 입력
+    state.playerTurn = true;
+    setInputEnabled(true);
+    wordInput.focus();
+    return;
+  }
+
+  addToChain(result.word, 'ai', result.fromCache);
+  state.usedWords.push(result.word);
+  state.turns++;
+  state.isFirstWord = false;
+  turnBadge.textContent = `${state.turns}턴`;
+
+  const nextRequired = getRequiredChars(result.word);
+  state.requiredChars = nextRequired;
+  updateRequiredBar(nextRequired);
+
+  state.playerTurn = true;
+  setInputEnabled(true);
+  wordInput.focus();
+}
+
 // ===== AI 차례 =====
 async function aiTurn(previousWord) {
   const required = getRequiredChars(previousWord);
@@ -414,8 +470,8 @@ async function aiTurn(previousWord) {
       body: JSON.stringify({
         requiredChars:    required.map(r => r.char),
         usedWords:        state.usedWords,
-        allowPersonNames: state.options.allowPersonNames,
-        allowPlaceNames:  state.options.allowPlaceNames,
+        allowPersonNames: false,
+        allowPlaceNames:  false,
       }),
     });
     result = await res.json();

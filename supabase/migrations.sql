@@ -168,7 +168,7 @@ LANGUAGE sql STABLE AS $$
   SELECT w.word, w.first_char, w.last_char
   FROM words w
   WHERE w.is_valid = TRUE
-    AND w.first_char = ANY(p_required_chars)
+    AND (cardinality(p_required_chars) = 0 OR w.first_char = ANY(p_required_chars))
     AND NOT (w.word = ANY(p_used_words))
     AND (p_allow_person OR NOT w.is_person_name)
     AND (p_allow_place  OR NOT w.is_place_name)
