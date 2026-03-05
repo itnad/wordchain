@@ -353,9 +353,10 @@ html, body {
 
 /* ===== Game Screen ===== */
 #gameScreen, #challengeScreen {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
   overflow: hidden;
   background: var(--bg);
 }
@@ -1116,6 +1117,15 @@ html, body {
 @media (min-width: 520px) {
   /* Center game/challenge screen as a mobile-width column */
   .screen { max-width: 480px; margin: 0 auto; }
+
+  /* position:fixed 요소는 margin:auto가 안 되므로 transform으로 중앙 정렬 */
+  #gameScreen, #challengeScreen {
+    left: 50%;
+    right: auto;
+    width: 480px;
+    transform: translateX(-50%);
+    margin: 0;
+  }
 
   /* Floating card for setup screens */
   #setupScreen, #nicknameScreen {

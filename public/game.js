@@ -687,5 +687,18 @@ async function loadRanking() {
   }
 }
 
+// ===== 모바일 키보드 대응 =====
+// 키보드가 올라오면 visualViewport.height가 줄어드는 것을 감지해
+// gameScreen 높이를 실제 보이는 영역에 맞게 동적 조정
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    if (!gameScreen.classList.contains('hidden')) {
+      gameScreen.style.height = window.visualViewport.height + 'px';
+      // 최신 단어가 보이도록 체인 스크롤 유지
+      chainContainer.scrollTop = chainContainer.scrollHeight;
+    }
+  });
+}
+
 // 앱 시작
 init();

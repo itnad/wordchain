@@ -339,5 +339,14 @@ challengeBtn.addEventListener('click', async () => {
   }
 });
 
+// ===== 모바일 키보드 대응 =====
+if (window.visualViewport) {
+  const challengeScreen = $('challengeScreen');
+  window.visualViewport.addEventListener('resize', () => {
+    challengeScreen.style.height = window.visualViewport.height + 'px';
+    chainContainer.scrollTop = chainContainer.scrollHeight;
+  });
+}
+
 // ===== 시작 =====
 init();
