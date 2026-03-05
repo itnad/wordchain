@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   if (error) {
     console.error('challenge error:', error);
-    return res.status(500).json({ success: false });
+    return res.status(500).json({ success: false, message: error.message });
   }
 
   return res.json({ success: true });
