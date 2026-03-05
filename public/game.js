@@ -102,9 +102,6 @@ const errorMsg             = $('errorMsg');
 const aiLoading            = $('aiLoading');
 const turnBadge            = $('turnBadge');
 const resetBtn             = $('resetBtn');
-const rankingToggleBtn     = $('rankingToggleBtn');
-const rankingPanel         = $('rankingPanel');
-const rankingList          = $('rankingList');
 const processLog           = $('processLog');
 
 // Helper to switch screens
@@ -274,7 +271,6 @@ async function startGame() {
   }
 
   resetGameState();
-  loadRanking();
 }
 
 // ===== 게임 상태 초기화 =====
@@ -320,14 +316,12 @@ function resetGame() {
   });
 
   resetGameState();
-  loadRanking();
 }
 
 // ===== 인게임 이벤트 =====
 submitBtn.addEventListener('click', handleSubmit);
 wordInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSubmit(); });
 resetBtn.addEventListener('click', resetGame);
-rankingToggleBtn.addEventListener('click', () => rankingPanel.classList.toggle('hidden'));
 
 // ===== 입력 처리 =====
 async function handleSubmit() {
@@ -628,37 +622,6 @@ challengeBtn.addEventListener('click', async () => {
     challengeBtn.textContent = '이의 제기';
   }
 });
-
-// ===== 랭킹 =====
-async function loadRanking() {
-  try {
-    const res = await fetch('/api/ranking');
-    const ranking = await res.json();
-
-    rankingList.innerHTML = ''; // Clear existing list
-
-    if (ranking.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'ranking-empty';
-      li.textContent = '기록이 없습니다';
-      rankingList.appendChild(li);
-    } else {
-      ranking.forEach((entry, index) => {
-        const li = document.createElement('li');
-        li.className = 'ranking-item';
-        li.innerHTML = `
-          <span class="ranking-rank">${index + 1}.</span>
-          <span class="ranking-nickname">${entry.nickname}</span>
-          <span class="ranking-score">${entry.player_word_count} 단어</span>
-        `;
-        rankingList.appendChild(li);
-      });
-    }
-  } catch (e) {
-    console.error('Failed to load ranking:', e);
-    rankingList.innerHTML = '<li class="ranking-empty">랭킹을 불러올 수 없습니다.</li>';
-  }
-}
 
 // ===== 모바일 키보드 대응 =====
 // visualViewport.height  : 키보드를 제외한 실제 보이는 높이
