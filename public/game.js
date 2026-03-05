@@ -98,6 +98,7 @@ const requiredCharsDisplay = $('requiredCharsDisplay');
 const requiredBar          = $('requiredBar');
 const wordInput            = $('wordInput');
 const submitBtn            = $('submitBtn');
+const surrenderBtn         = $('surrenderBtn');
 const errorMsg             = $('errorMsg');
 const aiLoading            = $('aiLoading');
 const turnBadge            = $('turnBadge');
@@ -584,8 +585,9 @@ function hideProcessLog() {
 }
 
 function setInputEnabled(enabled) {
-  wordInput.disabled = !enabled;
-  submitBtn.disabled = !enabled;
+  wordInput.disabled  = !enabled;
+  submitBtn.disabled  = !enabled;
+  surrenderBtn.disabled = !enabled;
 }
 
 function showAiLoading(show) {
@@ -632,6 +634,25 @@ async function showGameOver(message, result) {
   `;
   gameScreen.appendChild(gameOverBanner);
 }
+
+// ===== 포기 모달 =====
+const surrenderModal       = $('surrenderModal');
+const surrenderConfirmBtn  = $('surrenderConfirmBtn');
+const surrenderCancelBtn   = $('surrenderCancelBtn');
+
+surrenderBtn.addEventListener('click', () => {
+  if (state.gameOver || !state.playerTurn) return;
+  surrenderModal.classList.remove('hidden');
+});
+
+surrenderCancelBtn.addEventListener('click', () => {
+  surrenderModal.classList.add('hidden');
+});
+
+surrenderConfirmBtn.addEventListener('click', () => {
+  surrenderModal.classList.add('hidden');
+  showGameOver('포기했습니다.', 'ai_win');
+});
 
 // ===== 단어 정보 모달 =====
 const wordInfoModal    = $('wordInfoModal');

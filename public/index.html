@@ -87,6 +87,7 @@
       <div class="process-log hidden" id="processLog"></div>
       <div class="error-msg hidden" id="errorMsg"></div>
       <div class="input-row">
+        <button class="btn-surrender" id="surrenderBtn">포기</button>
         <input
           type="text"
           id="wordInput"
@@ -123,6 +124,17 @@
       <div class="modal-footer">
         <p class="modal-challenge-hint">이 단어가 잘못 쓰였다고 생각하나요?</p>
         <button class="btn-challenge" id="challengeBtn">이의 제기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 포기 확인 모달 -->
+  <div class="surrender-overlay hidden" id="surrenderModal">
+    <div class="surrender-card">
+      <p class="surrender-msg">이대로 포기하겠습니까?</p>
+      <div class="surrender-actions">
+        <button class="btn-surrender-cancel" id="surrenderCancelBtn">취소</button>
+        <button class="btn-surrender-confirm" id="surrenderConfirmBtn">포기</button>
       </div>
     </div>
   </div>
