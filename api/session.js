@@ -38,17 +38,6 @@ export default async function handler(req, res) {
     .eq('session_id', session_id)
     .maybeSingle();
 
-  if (existing) {
-    await supabase.from('players')
-      .update({ last_seen: new Date().toISOString() })
-      .eq('session_id', session_id);
-    return res.json({
-      nickname:     existing.nickname,
-      display_name: existing.display_name,
-      is_new:       false,
-    });
-  }
-
   // 닉네임 단어 목록 조회
   const { data: words } = await supabase
     .from('nickname_words')
@@ -56,8 +45,22 @@ export default async function handler(req, res) {
 
   const adjectives = (words ?? []).filter(w => w.type === 'adjective').map(w => w.word);
   const places     = (words ?? []).filter(w => w.type === 'place').map(w => w.word);
+  const nickname   = generateNickname(session_id, display_name, adjectives, places);
 
-  const nickname = generateNickname(session_id, display_name, adjectives, places);
+  if (existing) {
+    // 이름이 바뀌었으면 display_name, nickname도 함께 업데이트
+    const updates = { last_seen: new Date().toISOString() };
+    if (existing.display_name !== display_name) {
+      updates.display_name = display_name;
+      updates.nickname     = nickname;
+    }
+    await supabase.from('players').update(updates).eq('session_id', session_id);
+    return res.json({
+      nickname:     updates.nickname ?? existing.nickname,
+      display_name: display_name,
+      is_new:       false,
+    });
+  }
 
   await supabase.from('players').insert({
     session_id,
