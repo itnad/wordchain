@@ -135,8 +135,15 @@ jobs:
                   ef.write(f"COMMIT_MSG={result.get('summary', 'AI fix')}\n")
                   clean_analysis = result.get('analysis', '').replace('\n', ' ').replace('\r', '')
                   ef.write(f"GEMINI_ANALYSIS={clean_analysis}\n")
+                  ef.write("ERROR_TYPE=none\n")
 
           except Exception as e:
+              error_str = str(e)
+              with open(os.environ["GITHUB_ENV"], "a") as ef:
+                  if "503" in error_str or "UNAVAILABLE" in error_str:
+                      ef.write("ERROR_TYPE=503\n")
+                  else:
+                      ef.write("ERROR_TYPE=unknown\n")
               print(f"Error: {e}")
               raise e
           PYEOF
@@ -176,15 +183,18 @@ jobs:
           GEMINI_ANALYSIS: ${{ env.GEMINI_ANALYSIS }}
           COMMIT_MSG: ${{ env.COMMIT_MSG }}
           JOB_STATUS: ${{ job.status }}
+          ERROR_TYPE: ${{ env.ERROR_TYPE }}
         with:
           script: |
-            const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
+            const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS, ERROR_TYPE } = process.env;
             let body = '';
             if (JOB_STATUS === 'success') {
               body = `## ✅ gemini-3-flash-preview 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
               body += HAS_CHANGES === 'true' 
                 ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
                 : `> ✨ 변경 사항이 없어 종료되었습니다.`;
+            } else if (ERROR_TYPE === '503') {
+              body = `## ⚠️ Gemini 서버 오류\n\n**503 UNAVAILABLE** - Gemini 서버에 현재 요청이 폭주하고 있습니다.\n\n> 잠시 후 이슈에 \`ai\` 라벨을 다시 추가하여 재시도해 주세요.`;
             } else {
               body = `## ❌ 작업 실패\n\nGit 충돌 또는 설정 오류가 발생했습니다. Actions 로그를 확인해 주세요.`;
             }
