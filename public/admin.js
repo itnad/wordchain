@@ -80,9 +80,8 @@ async function login() {
     loginSection.style.display = 'none';
     mainSection.style.display  = 'block';
 
-    // URL 해시로 초기 탭 결정 (#word-input, #challenges, 기본=rejected)
     const hash = location.hash.replace('#', '');
-    if (hash === 'word-input' || hash === 'challenges') {
+    if (['word-input', 'challenges', 'word-mgmt'].includes(hash)) {
       switchTab(hash);
     } else {
       const data = await res.json();
@@ -102,11 +101,16 @@ function switchTab(tab) {
   document.getElementById('tabRejected').classList.toggle('active', tab === 'rejected');
   document.getElementById('tabChallenges').classList.toggle('active', tab === 'challenges');
   document.getElementById('tabWordInput').classList.toggle('active', tab === 'word-input');
+  document.getElementById('tabWordMgmt').classList.toggle('active', tab === 'word-mgmt');
+  
   document.getElementById('panelRejected').style.display   = tab === 'rejected'   ? '' : 'none';
   document.getElementById('panelChallenges').style.display = tab === 'challenges' ? '' : 'none';
   document.getElementById('panelWordInput').style.display  = tab === 'word-input' ? '' : 'none';
+  document.getElementById('panelWordMgmt').style.display   = tab === 'word-mgmt'  ? '' : 'none';
+
   if (tab === 'challenges') loadChallenges();
   if (tab === 'word-input') initWordInput();
+  if (tab === 'word-mgmt') initWordMgmt();
 }
 
 // ===== 목록 로드 =====
@@ -131,29 +135,23 @@ async function loadList() {
 
 function renderTable(words) {
   tableLoading.classList.add('hidden');
-
   if (words.length === 0) {
     emptyMsg.classList.remove('hidden');
     return;
   }
-
   wordCount.textContent = `총 ${words.length}개`;
   wordTableBody.innerHTML = '';
-
   words.forEach(row => {
     const tr = document.createElement('tr');
     tr.id = `row-${row.word}`;
-
     const statusHtml = row.already_decided === true
       ? '<span class="status-approved">허용됨</span>'
       : row.already_decided === false
         ? '<span class="status-rejected">거부됨</span>'
         : '<span class="status-none">미결정</span>';
-
     const date = row.last_rejected_at
       ? new Date(row.last_rejected_at).toLocaleDateString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
       : '-';
-
     tr.innerHTML = `
       <td class="word-cell">${row.word}</td>
       <td class="count-cell">${row.reject_count}회</td>
@@ -166,7 +164,6 @@ function renderTable(words) {
     `;
     wordTableBody.appendChild(tr);
   });
-
   wordTable.style.display = 'table';
 }
 
@@ -175,7 +172,6 @@ async function loadChallenges() {
   challengeLoading.classList.remove('hidden');
   challengeTable.style.display = 'none';
   challengeEmptyMsg.classList.add('hidden');
-
   const res  = await fetch('/api/admin', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -187,23 +183,18 @@ async function loadChallenges() {
 
 function renderChallenges(challenges) {
   challengeLoading.classList.add('hidden');
-
   if (challenges.length === 0) {
     challengeEmptyMsg.classList.remove('hidden');
     return;
   }
-
   wordCount.textContent = `총 ${challenges.length}개`;
   challengeTableBody.innerHTML = '';
-
   challenges.forEach(row => {
     const tr = document.createElement('tr');
     tr.id = `ch-row-${row.word}`;
-
     const date = row.last_challenged_at
       ? new Date(row.last_challenged_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
       : '-';
-
     tr.innerHTML = `
       <td class="word-cell">${row.word}</td>
       <td class="count-cell">${row.challenge_count}회</td>
@@ -215,7 +206,6 @@ function renderChallenges(challenges) {
     `;
     challengeTableBody.appendChild(tr);
   });
-
   challengeTable.style.display = 'table';
 }
 
@@ -223,7 +213,6 @@ async function handleChallenge(word, action, btn) {
   btn.disabled = true;
   const row = document.getElementById(`ch-row-${word}`);
   if (row) row.style.opacity = '0.5';
-
   try {
     const res  = await fetch('/api/admin', {
       method:  'POST',
@@ -231,7 +220,6 @@ async function handleChallenge(word, action, btn) {
       body: JSON.stringify({ password: adminPassword, action: `challenge-${action}`, word }),
     });
     const data = await res.json();
-
     if (data.success) {
       if (row) row.remove();
       showToast(`"${word}" ${action === 'dismiss' ? '유지' : '제외'} 처리 완료`);
@@ -247,12 +235,10 @@ async function handleChallenge(word, action, btn) {
   }
 }
 
-// ===== 단어 처리 =====
 async function decide(word, action, btn) {
   btn.disabled = true;
   const row = document.getElementById(`row-${word}`);
   if (row) row.style.opacity = '0.5';
-
   try {
     const res = await fetch('/api/admin', {
       method: 'POST',
@@ -260,7 +246,6 @@ async function decide(word, action, btn) {
       body: JSON.stringify({ password: adminPassword, action, word }),
     });
     const data = await res.json();
-
     if (data.success) {
       const statusCell = row?.querySelector('.status-cell');
       if (statusCell) {
@@ -280,103 +265,21 @@ async function decide(word, action, btn) {
   }
 }
 
-// ===== 단어 입력 챌린지 =====
-const wiState = {
-  chain: [], usedWords: [],
-  requiredChars: [], isFirstWord: true,
-  newCount: 0,       // 실제 신규 추가된 단어 수
-  existingCount: 0,  // 이미 DB에 있던 단어 수
-  newWords: [],      // 신규 추가된 단어 목록
-};
+// ===== 단어 입력 =====
+const wiState = { chain: [], usedWords: [], requiredChars: [], isFirstWord: true, newCount: 0, existingCount: 0, newWords: [] };
 let wiInitialized = false;
-
 function initWordInput() {
   if (wiInitialized) return;
   wiInitialized = true;
   document.getElementById('wiSubmitBtn').addEventListener('click', wiSubmit);
-  document.getElementById('wiWordInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') wiSubmit();
-  });
-  document.getElementById('wiWordInput').focus();
+  document.getElementById('wiWordInput').addEventListener('keydown', e => { if (e.key === 'Enter') wiSubmit(); });
 }
-
-function wiShowError(msg) {
-  const el = document.getElementById('wiError');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-}
-function wiHideError() {
-  const el = document.getElementById('wiError');
-  el.classList.add('hidden');
-  el.textContent = '';
-}
-
-function wiUpdateRequiredBar(required) {
-  const bar    = document.getElementById('wiRequiredBar');
-  const display = document.getElementById('wiRequiredCharsDisplay');
-  bar.style.opacity = '1';
-  display.innerHTML = '';
-  required.forEach((r, i) => {
-    if (i > 0) {
-      const or = document.createElement('span');
-      or.className = 'req-or';
-      or.textContent = '또는';
-      display.appendChild(or);
-    }
-    const span = document.createElement('span');
-    span.className = `req-char${r.isDueum ? ' dueum' : ''}`;
-    span.innerHTML = r.isDueum
-      ? `${r.char} <span class="dueum-badge">두음</span>`
-      : r.char;
-    display.appendChild(span);
-  });
-}
-
-function wiAddToChain(word, isNew) {
-  const chain = document.getElementById('wiChain');
-  const badge = document.createElement('span');
-  badge.className = isNew ? 'wi-badge' : 'wi-badge wi-badge-existing';
-  const chars = [...word];
-  const label = isNew ? '' : ' <span class="wi-existing-label">기존</span>';
-  badge.innerHTML = `<span class="hl-first">${chars[0]}</span>${chars.slice(1,-1).join('')}<span class="hl-last">${chars[chars.length-1]}</span>${label}`;
-  chain.appendChild(badge);
-  chain.scrollTop = chain.scrollHeight;
-}
-
-function wiUpdateStats() {
-  document.getElementById('wiCount').textContent = wiState.newCount;
-
-  const existingInfo = document.getElementById('wiExistingInfo');
-  if (wiState.existingCount > 0) {
-    document.getElementById('wiExistingCount').textContent = wiState.existingCount;
-    existingInfo.style.display = '';
-  }
-
-  // 신규 단어 목록 업데이트
-  const summary  = document.getElementById('wiSummary');
-  const summaryW = document.getElementById('wiSummaryWords');
-  if (wiState.newWords.length > 0) {
-    summaryW.innerHTML = wiState.newWords.map(w => {
-      const c = [...w];
-      return `<span class="wi-badge wi-badge-sm"><span class="hl-first">${c[0]}</span>${c.slice(1,-1).join('')}<span class="hl-last">${c[c.length-1]}</span></span>`;
-    }).join('');
-    summary.style.display = '';
-  }
-}
-
 async function wiSubmit() {
   const input = document.getElementById('wiWordInput');
   const word  = input.value.trim();
-  wiHideError();
-
-  const chars = [...word];
-  if (chars.length !== 3) { wiShowError('정확히 3글자 단어를 입력하세요.'); return; }
-  if (!chars.every(c => /[가-힣]/.test(c))) { wiShowError('한글 단어만 입력 가능합니다.'); return; }
-  if (wiState.usedWords.includes(word)) { wiShowError('이미 추가한 단어입니다.'); return; }
-
+  if (word.length !== 3) return;
   const btn = document.getElementById('wiSubmitBtn');
   btn.disabled = true;
-
   try {
     const res = await fetch('/api/admin', {
       method:  'POST',
@@ -384,50 +287,103 @@ async function wiSubmit() {
       body: JSON.stringify({ password: adminPassword, action: 'add-word', word }),
     });
     const data = await res.json();
+    if (data.success) {
+      const isNew = !data.alreadyExists;
+      const chain = document.getElementById('wiChain');
+      const badge = document.createElement('span');
+      badge.className = isNew ? 'wi-badge' : 'wi-badge wi-badge-existing';
+      badge.innerHTML = `${word}${isNew ? '' : ' <span class="wi-existing-label">기존</span>'}`;
+      chain.appendChild(badge);
+      if (isNew) wiState.newCount++; else wiState.existingCount++;
+      document.getElementById('wiCount').textContent = wiState.newCount;
+      input.value = '';
+      showToast(`"${word}" 추가 완료`);
+    }
+  } catch {} finally { btn.disabled = false; input.focus(); }
+}
 
-    if (!data.success) {
-      wiShowError(data.error || '추가 실패');
+// ===== 단어 관리 (신규) =====
+let wmInitialized = false;
+function initWordMgmt() {
+  if (wmInitialized) return;
+  wmInitialized = true;
+  document.getElementById('wmSearchBtn').addEventListener('click', wmSearch);
+  document.getElementById('wmSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') wmSearch(); });
+}
+
+async function wmSearch() {
+  const word = document.getElementById('wmSearchInput').value.trim();
+  if (!word) return;
+  const area = document.getElementById('wmResultArea');
+  area.innerHTML = '<div class="loading">검색 중...</div>';
+  try {
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword, action: 'search-word', word }),
+    });
+    const data = await res.json();
+    if (!data.word) {
+      area.innerHTML = '<div class="empty">단어를 찾을 수 없습니다.</div>';
       return;
     }
-
-    const isNew = !data.alreadyExists;
-    wiAddToChain(word, isNew);
-    wiState.usedWords.push(word);
-    wiState.isFirstWord = false;
-
-    if (isNew) {
-      wiState.newCount++;
-      wiState.newWords.push(word);
-      showToast(`"${word}" 신규 추가 완료`);
-    } else {
-      wiState.existingCount++;
-      showToast(`"${word}" 이미 등록된 단어`, 'warn');
-    }
-    wiUpdateStats();
-
-    const required = getRequiredChars(word);
-    wiState.requiredChars = required;
-    wiUpdateRequiredBar(required);
-
-    input.value = '';
+    renderWordMgmtForm(data.word);
   } catch {
-    wiShowError('서버 오류가 발생했습니다.');
-  } finally {
-    btn.disabled = false;
-    input.focus();
+    area.innerHTML = '<div class="empty">검색 중 오류가 발생했습니다.</div>';
   }
 }
 
-// ===== 토스트 =====
-// type: 'ok'(초록) | 'warn'(노랑) | 'error'(빨강)
-function showToast(msg, typeOrBool = 'ok') {
-  const type = typeOrBool === true ? 'error' : typeOrBool === false ? 'ok' : typeOrBool;
-  const colors = { ok: 'var(--accent)', warn: 'var(--warn, #ffb347)', error: 'var(--error)' };
-  const color  = colors[type] ?? colors.ok;
+function renderWordMgmtForm(wordObj) {
+  const area = document.getElementById('wmResultArea');
+  area.innerHTML = `
+    <div class="wm-edit-form">
+      <div class="wm-field"><span class="wm-label">단어</span><strong class="wm-val" style="font-size:1.2rem">${wordObj.word}</strong></div>
+      <div class="wm-field"><span class="wm-label">유효 여부</span><input type="checkbox" id="wm-valid" ${wordObj.is_valid ? 'checked' : ''}></div>
+      <div class="wm-field"><span class="wm-label">인명 여부</span><input type="checkbox" id="wm-person" ${wordObj.is_person_name ? 'checked' : ''}></div>
+      <div class="wm-field"><span class="wm-label">지명 여부</span><input type="checkbox" id="wm-place" ${wordObj.is_place_name ? 'checked' : ''}></div>
+      <div class="wm-field"><span class="wm-label">킬러 점수</span><input type="number" id="wm-killer" class="wm-input" value="${wordObj.killer_score || 0}" style="width:80px"></div>
+      <div class="wm-field"><span class="wm-label">출처</span><span class="wm-val">${wordObj.source || '-'}</span></div>
+      <div class="wm-field"><span class="wm-label">시작/끝</span><span class="wm-val">${wordObj.first_char} / ${wordObj.last_char}</span></div>
+      <button class="wm-save-btn" id="wmSaveBtn">저장하기</button>
+    </div>
+  `;
+  document.getElementById('wmSaveBtn').addEventListener('click', () => wmSave(wordObj.word));
+}
+
+async function wmSave(word) {
+  const btn = document.getElementById('wmSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  const payload = {
+    password: adminPassword,
+    action: 'update-word',
+    word,
+    is_valid: document.getElementById('wm-valid').checked,
+    is_person_name: document.getElementById('wm-person').checked,
+    is_place_name: document.getElementById('wm-place').checked,
+    killer_score: parseInt(document.getElementById('wm-killer').value, 10) || 0
+  };
+  try {
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) showToast(`"${word}" 정보가 수정되었습니다.`);
+    else showToast('수정 실패', true);
+  } catch {
+    showToast('서버 오류', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '저장하기';
+  }
+}
+
+function showToast(msg, isError = false) {
   const t = document.createElement('div');
   t.className = 'toast';
-  t.style.borderColor = color;
-  t.style.color = color;
+  if (isError) t.style.color = 'var(--error)';
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);
