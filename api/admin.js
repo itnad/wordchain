@@ -109,18 +109,31 @@ export default async function handler(req, res) {
     return res.json({ success: true, alreadyExists: false });
   }
 
-  // 단어 관리: 검색
+  // 단어 관리: 검색 (부분 검색, 다건)
   if (action === 'search-word') {
-    const { data, error } = await supabase.from('words').select('*').eq('word', word).maybeSingle();
+    const { data, error } = await supabase
+      .from('words')
+      .select('word, is_valid, killer_score')
+      .ilike('word', `%${word}%`)
+      .order('word')
+      .limit(100);
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ word: data });
+    return res.json({ words: data ?? [] });
   }
 
   // 단어 관리: 수정
   if (action === 'update-word') {
-    const { error } = await supabase.from('words').update({
-      is_valid, is_person_name, is_place_name, killer_score
-    }).eq('word', word);
+    const { error } = await supabase.from('words')
+      .update({ is_valid, killer_score })
+      .eq('word', word);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ success: true });
+  }
+
+  // 단어 관리: 삭제
+  if (action === 'delete-word') {
+    if (!word) return res.status(400).json({ error: 'word가 필요합니다.' });
+    const { error } = await supabase.from('words').delete().eq('word', word);
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ success: true });
   }

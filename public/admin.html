@@ -101,11 +101,9 @@
     .wm-input { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 12px; outline: none; }
     .wm-input:focus { border-color: var(--accent); }
     .wm-btn { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
-    .wm-edit-form { padding: 20px; background: var(--card); border-radius: var(--radius); margin: 20px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
-    .wm-field { display: flex; align-items: center; gap: 12px; }
-    .wm-label { width: 120px; color: var(--dim); font-size: 0.85rem; }
-    .wm-val { flex: 1; }
-    .wm-save-btn { align-self: flex-end; padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    .wm-result-info { padding: 12px 0 8px; font-size: 0.85rem; color: var(--dim); }
+    .wm-select { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 5px 8px; outline: none; font-size: 0.85rem; width: 100%; cursor: pointer; }
+    .wm-select:focus { border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -202,34 +200,25 @@
   <!-- 단어 관리 -->
   <div id="panelWordMgmt" style="display:none">
     <div class="wm-search-row">
-      <input type="text" id="wmSearchInput" class="wm-input" placeholder="검색할 단어 입력...">
+      <input type="text" id="wmSearchInput" class="wm-input" placeholder="단어 검색 (부분 검색 가능)">
       <button class="wm-btn" id="wmSearchBtn">검색</button>
     </div>
     <div id="wmResultArea">
       <div id="wmEmptyMsg" class="empty">단어를 검색해주세요.</div>
-      <div id="wmEditForm" class="wm-edit-form" style="display:none">
-        <div class="wm-field">
-          <span class="wm-label">단어</span>
-          <strong id="wmWordDisplay" style="font-size:1.2rem;color:var(--accent);letter-spacing:2px;"></strong>
-        </div>
-        <div class="wm-field">
-          <span class="wm-label">사용 가능</span>
-          <select id="wmIsValidInput" class="wm-input">
-            <option value="true">허용</option>
-            <option value="false">차단</option>
-          </select>
-        </div>
-        <div class="wm-field">
-          <span class="wm-label">필살/희귀 점수</span>
-          <select id="wmKillerInput" class="wm-input">
-            <option value="">일반단어 (NULL)</option>
-            <option value="0">0 — 필살단어</option>
-            <option value="1">1 — 희귀단어 (1개)</option>
-            <option value="2">2 — 희귀단어 (2개)</option>
-            <option value="3">3 — 희귀단어 (3개)</option>
-          </select>
-        </div>
-        <button class="wm-save-btn" id="wmSaveBtn">저장하기</button>
+      <div id="wmTableWrap" class="table-wrap" style="display:none">
+        <div class="wm-result-info" id="wmResultInfo"></div>
+        <table>
+          <thead>
+            <tr>
+              <th>단어</th>
+              <th>사용 가능</th>
+              <th>필살/희귀 점수</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="wmTableBody"></tbody>
+        </table>
       </div>
     </div>
   </div>

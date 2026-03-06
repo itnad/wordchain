@@ -422,9 +422,7 @@ function initWordMgmt() {
 
   const searchBtn   = document.getElementById('wmSearchBtn');
   const searchInput = document.getElementById('wmSearchInput');
-  const saveBtn     = document.getElementById('wmSaveBtn');
-
-  if (!searchBtn || !searchInput || !saveBtn) return;
+  if (!searchBtn || !searchInput) return;
 
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchBtn.click(); });
 
@@ -433,6 +431,9 @@ function initWordMgmt() {
     if (!word) return;
 
     searchBtn.disabled = true;
+    const tableWrap = document.getElementById('wmTableWrap');
+    const emptyMsg  = document.getElementById('wmEmptyMsg');
+
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
@@ -440,22 +441,19 @@ function initWordMgmt() {
         body: JSON.stringify({ password: adminPassword, action: 'search-word', word }),
       });
       const data = await res.json();
+      const words = data.words ?? [];
 
-      const editForm = document.getElementById('wmEditForm');
-      const emptyMsg = document.getElementById('wmEmptyMsg');
-
-      if (data.word) {
-        const w = data.word;
-        document.getElementById('wmWordDisplay').textContent = w.word;
-        document.getElementById('wmIsValidInput').value = String(w.is_valid !== false);
-        const killerVal = w.killer_score != null ? String(w.killer_score) : '';
-        document.getElementById('wmKillerInput').value = killerVal;
-        editForm.style.display = '';
-        emptyMsg.classList.add('hidden');
-      } else {
-        editForm.style.display = 'none';
+      if (words.length === 0) {
+        tableWrap.style.display = 'none';
         emptyMsg.classList.remove('hidden');
-        emptyMsg.textContent = '단어를 찾을 수 없습니다.';
+        emptyMsg.textContent = '검색 결과가 없습니다.';
+      } else {
+        document.getElementById('wmResultInfo').textContent = `검색 결과 ${words.length}개`;
+        const tbody = document.getElementById('wmTableBody');
+        tbody.innerHTML = '';
+        words.forEach(w => tbody.appendChild(renderWordRow(w)));
+        tableWrap.style.display = '';
+        emptyMsg.classList.add('hidden');
       }
     } catch {
       showToast('검색 중 오류 발생', true);
@@ -463,39 +461,85 @@ function initWordMgmt() {
       searchBtn.disabled = false;
     }
   });
+}
 
-  saveBtn.addEventListener('click', async () => {
-    const word         = document.getElementById('wmWordDisplay').textContent;
-    const is_valid     = document.getElementById('wmIsValidInput').value === 'true';
-    const killerRaw    = document.getElementById('wmKillerInput').value;
-    const killer_score = killerRaw === '' ? null : Number(killerRaw);
+function renderWordRow(w) {
+  const tr = document.createElement('tr');
 
-    saveBtn.disabled = true;
-    saveBtn.textContent = '저장 중...';
+  const tdWord = document.createElement('td');
+  tdWord.className = 'word-cell';
+  tdWord.textContent = w.word;
 
+  const tdValid = document.createElement('td');
+  const selValid = document.createElement('select');
+  selValid.className = 'wm-select';
+  selValid.innerHTML = '<option value="true">허용</option><option value="false">차단</option>';
+  selValid.value = String(w.is_valid !== false);
+  tdValid.appendChild(selValid);
+
+  const tdKiller = document.createElement('td');
+  const selKiller = document.createElement('select');
+  selKiller.className = 'wm-select';
+  selKiller.innerHTML = `
+    <option value="">일반단어</option>
+    <option value="0">0 — 필살</option>
+    <option value="1">1 — 희귀(1)</option>
+    <option value="2">2 — 희귀(2)</option>
+    <option value="3">3 — 희귀(3)</option>`;
+  selKiller.value = w.killer_score != null ? String(w.killer_score) : '';
+  tdKiller.appendChild(selKiller);
+
+  const tdSave = document.createElement('td');
+  const btnSave = document.createElement('button');
+  btnSave.className = 'btn-approve';
+  btnSave.textContent = '저장';
+  btnSave.addEventListener('click', async () => {
+    btnSave.disabled = true;
+    btnSave.textContent = '···';
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          password: adminPassword,
-          action: 'update-word',
-          word,
-          is_valid,
-          killer_score,
+          password: adminPassword, action: 'update-word', word: w.word,
+          is_valid: selValid.value === 'true',
+          killer_score: selKiller.value === '' ? null : Number(selKiller.value),
         }),
       });
       const data = await res.json();
-      if (data.success) {
-        showToast(`"${word}" 정보가 수정되었습니다.`);
-      } else {
-        showToast('수정 실패: ' + (data.error || '알 수 없는 오류'), true);
-      }
+      showToast(data.success ? `"${w.word}" 저장 완료` : '저장 실패: ' + (data.error || '오류'), !data.success);
     } catch {
-      showToast('서버 오류 발생', true);
+      showToast('서버 오류', true);
     } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = '저장하기';
+      btnSave.disabled = false;
+      btnSave.textContent = '저장';
     }
   });
+  tdSave.appendChild(btnSave);
+
+  const tdDel = document.createElement('td');
+  const btnDel = document.createElement('button');
+  btnDel.className = 'btn-reject';
+  btnDel.textContent = '삭제';
+  btnDel.addEventListener('click', async () => {
+    if (!confirm(`"${w.word}" 단어를 삭제하시겠습니까?`)) return;
+    btnDel.disabled = true;
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword, action: 'delete-word', word: w.word }),
+      });
+      const data = await res.json();
+      if (data.success) { tr.remove(); showToast(`"${w.word}" 삭제 완료`); }
+      else { showToast('삭제 실패', true); btnDel.disabled = false; }
+    } catch {
+      showToast('서버 오류', true);
+      btnDel.disabled = false;
+    }
+  });
+  tdDel.appendChild(btnDel);
+
+  tr.append(tdWord, tdValid, tdKiller, tdSave, tdDel);
+  return tr;
 }
