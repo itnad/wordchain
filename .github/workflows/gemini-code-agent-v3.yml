@@ -1,0 +1,185 @@
+name: Gemini Code Agent v3
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  gemini-code-agent:
+    if: |
+      contains(github.event.issue.labels.*.name, 'ai') ||
+      startsWith(github.event.issue.title, '[AI]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-genai
+
+      - name: Collect repository files
+        run: |
+          find . \
+            -type f \( \
+              -name "*.py" -o -name "*.js" -o -name "*.ts" -o \
+              -name "*.jsx" -o -name "*.tsx" -o -name "*.html" -o \
+              -name "*.css" -o -name "*.json" -o -name "*.md" \
+            \) \
+            ! -path "./.git/*" \
+            ! -path "./node_modules/*" \
+            ! -path "./.github/*" \
+            > /tmp/file_list.txt || true
+
+      # ── REVERT 모드 감지: 제목이 "REVERT: <해시>"로 시작하면 revert 실행 ──
+      - name: Detect mode
+        id: detect_mode
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          REVERT_HASH=$(echo "$ISSUE_TITLE" | grep -oP '(?<=^REVERT:\s)[a-f0-9A-F]{5,40}' || true)
+          if [ -n "$REVERT_HASH" ]; then
+            echo "MODE=revert" >> $GITHUB_ENV
+            echo "REVERT_HASH=$REVERT_HASH" >> $GITHUB_ENV
+            echo "✅ REVERT 모드 감지: $REVERT_HASH"
+          else
+            echo "MODE=ai" >> $GITHUB_ENV
+            echo "✅ AI 모드 감지"
+          fi
+
+      # ── REVERT 모드 ──
+      - name: Revert commit
+        if: env.MODE == 'revert'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ✅ 최신 커밋 여부 확인 (앞 7자리로 비교)
+          LATEST_HASH=$(git rev-parse --short=7 HEAD)
+          INPUT_SHORT="${{ env.REVERT_HASH }}"
+          INPUT_SHORT="${INPUT_SHORT:0:7}"
+
+          echo "최신 커밋: $LATEST_HASH / 입력 해시: $INPUT_SHORT"
+
+          if [ "$LATEST_HASH" != "$INPUT_SHORT" ]; then
+            echo "ERROR_TYPE=not_latest" >> $GITHUB_ENV
+            echo "❌ 최신 커밋이 아닙니다. REVERT 불가."
+            exit 1
+          fi
+
+          echo "🔄 커밋 되돌리기: ${{ env.REVERT_HASH }}"
+
+          if ! git revert ${{ env.REVERT_HASH }} --no-edit; then
+            echo "ERROR_TYPE=conflict" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          SUCCESS=false
+          for i in {1..3}; do
+            if git push origin main; then
+              SUCCESS=true
+              break
+            fi
+            echo "Push rejected. Retrying in 5s..."
+            sleep 5
+          done
+
+          if [ "$SUCCESS" = false ]; then exit 1; fi
+          echo "HAS_CHANGES=true" >> $GITHUB_ENV
+          echo "COMMIT_MSG=커밋 ${{ env.REVERT_HASH }} 되돌리기 완료" >> $GITHUB_ENV
+          echo "ERROR_TYPE=none" >> $GITHUB_ENV
+
+      # ── AI 모드 ──
+      - name: Run Gemini Code Agent
+        id: gemini_agent
+        if: env.MODE == 'ai'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          echo 'aW1wb3J0IG9zLCBqc29uLCByZQpmcm9tIGdvb2dsZSBpbXBvcnQgZ2VuYWkKZnJvbSBnb29nbGUuZ2VuYWkgaW1wb3J0IHR5cGVzCgpjbGllbnQgPSBnZW5haS5DbGllbnQoYXBpX2tleT1vcy5lbnZpcm9uWyJHRU1JTklfQVBJX0tFWSJdKQpNT0RFTF9JRCA9ICJnZW1pbmktMy1mbGFzaC1wcmV2aWV3IgoKU1lTVEVNID0gKAogICAgIuuEiOuKlCDshLjqs4Qg7IiY7KSA6riJ7J2YIOyLnOuLiOyWtCDqsJzrsJzsnpDri6QuIOyVhOuemCDqt5zsuZnsnYQg67CY65Oc7IucIOykgOyImO2VtOudvDpcbiIKICAgICIxLiDsnbTsiojsl5DshJwg66qF7Iuc7KCB7Jy866GcIOyalOyyre2VnCDrtoDrtoTrp4wg7IiY7KCV7ZW06528LiDsmpTssq3tlZjsp4Ag7JWK7J2AIOy9lOuTnOuKlCDsoIjrjIAg6rG065Oc66as7KeAIOuniOudvC5cbiIKICAgICIyLiDrs7TslYgg6rSA66CoIOy9lOuTnCjsnbjspp0sIOu5hOuwgOuyiO2YuCwg7IS47IWYLCDqtoztlZwg65OxKeuKlCDsmpTssq3snbQg7JeG7Jy866m0IOygiOuMgCDsiJjsoJXtlZjsp4Ag66eI6528LlxuIgogICAgIjMuIOq4sOyhtCDroZzsp4HsnYQg7IKt7KCc7ZWY6rGw64KYIOu5hO2ZnOyEse2ZlO2VmOyngCDrp4jrnbwuIOy2lOqwgOunjCDtl4jsmqnrkJzri6QuXG4iCiAgICAiNC4g7JqU7LKtIOuylOychCDrsJbsnZgg66as7Yyp7Yag66eBLCDstZzsoIHtmZQsIOuztOyViCDqsJzshKDsnYAg7ZWY7KeAIOuniOudvC5cbiIKICAgICI1LiDsnZHri7XsnYAg67CY65Oc7IucIEpTT07rp4wg7Lac66Cl7ZW06528LiDri6Trpbgg7YWN7Iqk7Yq4IOq4iOyngC5cblxuIgogICAgIuydkeuLtSBKU09OIO2YleyLnTpcbiIKICAgICJ7XG4iCiAgICAiICBcImNoYW5nZXNcIjogW1xuIgogICAgIiAgICB7XG4iCiAgICAiICAgICAgXCJwYXRoXCI6IFwi7YyM7J286rK966GcXCIsXG4iCiAgICAiICAgICAgXCJtb2RlXCI6IFwiYXBwZW5kIOuYkOuKlCByZXBsYWNlX2Jsb2NrIOuYkOuKlCBmdWxsXCIsXG4iCiAgICAiICAgICAgXCJjb250ZW50XCI6IFwi7LaU6rCA7ZWY6rGw64KYIOq1kOyytO2VoCDsvZTrk5xcIixcbiIKICAgICIgICAgICBcImFuY2hvclwiOiBcInJlcGxhY2VfYmxvY2vsnbwg65WMIOq1kOyytCDsi5zsnpEg7KSEICjsm5Drs7jqs7wg7KCV7ZmV7Z6IIOydvOy5mClcIlxuIgogICAgIiAgICB9XG4iCiAgICAiICBdLFxuIgogICAgIiAgXCJzdW1tYXJ5XCI6IFwi7ZWcIOykhCDsmpTslb1cIixcbiIKICAgICIgIFwiYW5hbHlzaXNcIjogXCLrtoTshJ0g64K07JqpXCJcbiIKICAgICJ9XG5cbiIKICAgICJtb2RlIOq3nOy5mTpcbiIKICAgICItIGFwcGVuZDog7YyM7J28IOuBneyXkCBjb250ZW50IOy2lOqwgC4g7IOIIO2VqOyImC/quLDriqUg7LaU6rCAIOyLnCDsgqzsmqkuXG4iCiAgICAiLSByZXBsYWNlX2Jsb2NrOiBhbmNob3Ig7KSE67aA7YSwIOyLnOyeke2VmOuKlCDruJTroZ3snYQgY29udGVudOuhnCDqtZDssrQuIOq4sOyhtCDtlajsiJgg7IiY7KCVIOyLnCDsgqzsmqkuXG4iCiAgICAiLSBmdWxsOiDtjIzsnbwg7KCE7LK066W8IGNvbnRlbnTroZwg6rWQ7LK0LiA1MDDsnpAg66+466eMIOyGjO2YlSDtjIzsnbzsl5Drp4wg7ZeI7JqpLlxuIgogICAgIi0gNTAw7J6QIOy0iOqzvCDtjIzsnbzsl5AgZnVsbCDrqqjrk5wg7KCI64yAIOq4iOyngC4gYXBwZW5kIOuYkOuKlCByZXBsYWNlX2Jsb2NrIOyCrOyaqS4iCikKCmlzc3VlX3RpdGxlID0gb3MuZW52aXJvblsiSVNTVUVfVElUTEUiXQppc3N1ZV9ib2R5ICA9IG9zLmVudmlyb24uZ2V0KCJJU1NVRV9CT0RZIiwgIiIpCmlzc3VlX251bSAgID0gb3MuZW52aXJvblsiSVNTVUVfTlVNQkVSIl0KCmFsbF9maWxlcyA9IHt9CndpdGggb3BlbigiL3RtcC9maWxlX2xpc3QudHh0IikgYXMgZjoKICAgIHBhdGhzID0gW3Auc3RyaXAoKSBmb3IgcCBpbiBmIGlmIHAuc3RyaXAoKV0KCmZvciBwYXRoIGluIHBhdGhzOgogICAgdHJ5OgogICAgICAgIHdpdGggb3BlbihwYXRoLCAiciIsIGVuY29kaW5nPSJ1dGYtOCIsIGVycm9ycz0iaWdub3JlIikgYXMgZmg6CiAgICAgICAgICAgIGFsbF9maWxlc1twYXRoXSA9IGZoLnJlYWQoKQogICAgZXhjZXB0OgogICAgICAgIHBhc3MKCmlzc3VlX3RleHQgPSAoaXNzdWVfdGl0bGUgKyAiICIgKyBpc3N1ZV9ib2R5KS5sb3dlcigpCmtleXdvcmRzICAgPSByZS5maW5kYWxsKHInW1x3XC0uXSsnLCBpc3N1ZV90ZXh0KQoKZGVmIHNjb3JlX2ZpbGUocGF0aCk6CiAgICBuYW1lID0gcGF0aC5sb3dlcigpLnJlcGxhY2UoIi4vIiwgIiIpCiAgICBzY29yZSA9IDAKICAgIGZvciBrdyBpbiBrZXl3b3JkczoKICAgICAgICBpZiBsZW4oa3cpID4gMyBhbmQga3cgaW4gbmFtZToKICAgICAgICAgICAgc2NvcmUgKz0gMTAKICAgIGlmIG5hbWUuZW5kc3dpdGgoIi5qcyIpOiAgIHNjb3JlICs9IDMKICAgIGlmIG5hbWUuZW5kc3dpdGgoIi5odG1sIik6IHNjb3JlICs9IDMKICAgIGlmIG5hbWUuZW5kc3dpdGgoIi5weSIpOiAgIHNjb3JlICs9IDIKICAgIGlmICJub2RlX21vZHVsZXMiIGluIG5hbWUgb3IgIi5taW4uIiBpbiBuYW1lOiBzY29yZSAtPSAxMDAKICAgIHJldHVybiBzY29yZQoKTUFYX1RPVEFMLCBNQVhfUEVSID0gNDAwMDAsIDgwMDAKc2NvcmVkICAgPSBzb3J0ZWQoYWxsX2ZpbGVzLml0ZW1zKCksIGtleT1sYW1iZGEgeDogc2NvcmVfZmlsZSh4WzBdKSwgcmV2ZXJzZT1UcnVlKQpzZWxlY3RlZCA9IHt9CnRvdGFsICAgID0gMApmb3IgcGF0aCwgYyBpbiBzY29yZWQ6CiAgICB0cnVuYyA9IGNbOk1BWF9QRVJdICsgZiJcbi4uLih7bGVuKGMpLU1BWF9QRVJ9IGNoYXJzIG9taXR0ZWQpIiBpZiBsZW4oYykgPiBNQVhfUEVSIGVsc2UgYwogICAgaWYgdG90YWwgKyBsZW4odHJ1bmMpID4gTUFYX1RPVEFMOgogICAgICAgIHByaW50KGYiU2tpcHBlZCAoYnVkZ2V0KToge3BhdGh9IikKICAgICAgICBjb250aW51ZQogICAgc2VsZWN0ZWRbcGF0aF0gPSB0cnVuYwogICAgdG90YWwgKz0gbGVuKHRydW5jKQoKcHJpbnQoZiJGaWxlczoge2xlbihzZWxlY3RlZCl9L3tsZW4oYWxsX2ZpbGVzKX0sIENvbnRleHQ6IHt0b3RhbH0gY2hhcnMiKQpjdHggICAgPSAiXG4iLmpvaW4oZic8ZmlsZSBwYXRoPSJ7cH0iPlxue2N9XG48L2ZpbGU+JyBmb3IgcCwgYyBpbiBzZWxlY3RlZC5pdGVtcygpKQpwcm9tcHQgPSBmIklzc3VlICN7aXNzdWVfbnVtfToge2lzc3VlX3RpdGxlfVxue2lzc3VlX2JvZHl9XG5cbkNvbnRleHQ6XG57Y3R4fSIKcHJpbnQoZiJQcm9tcHQgbGVuZ3RoOiB7bGVuKHByb21wdCl9IGNoYXJzIikKCnRyeToKICAgIHJlc3AgPSBjbGllbnQubW9kZWxzLmdlbmVyYXRlX2NvbnRlbnQoCiAgICAgICAgbW9kZWw9TU9ERUxfSUQsCiAgICAgICAgY29udGVudHM9cHJvbXB0LAogICAgICAgIGNvbmZpZz10eXBlcy5HZW5lcmF0ZUNvbnRlbnRDb25maWcoCiAgICAgICAgICAgIHN5c3RlbV9pbnN0cnVjdGlvbj1TWVNURU0sCiAgICAgICAgICAgIHRlbXBlcmF0dXJlPTAuMSwKICAgICAgICAgICAgcmVzcG9uc2VfbWltZV90eXBlPSJhcHBsaWNhdGlvbi9qc29uIiwKICAgICAgICAgICAgbWF4X291dHB1dF90b2tlbnM9MTYzODQKICAgICAgICApCiAgICApCgogICAgcmF3ID0gcmVzcC5wYXJzZWQgaWYgcmVzcC5wYXJzZWQgZWxzZSBqc29uLmxvYWRzKHJlc3AudGV4dCkKICAgIGlmIGlzaW5zdGFuY2UocmF3LCBsaXN0KToKICAgICAgICByZXN1bHQgPSB7ImNoYW5nZXMiOiByYXcsICJzdW1tYXJ5IjogIkFJIGZpeCIsICJhbmFseXNpcyI6ICIifQogICAgZWxpZiBpc2luc3RhbmNlKHJhdywgZGljdCk6CiAgICAgICAgcmVzdWx0ID0gcmF3CiAgICBlbHNlOgogICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoZiJVbmV4cGVjdGVkIHR5cGU6IHt0eXBlKHJhdyl9IikKCiAgICBmb3IgY2hhbmdlIGluIHJlc3VsdC5nZXQoImNoYW5nZXMiLCBbXSk6CiAgICAgICAgZnAgID0gKGNoYW5nZS5nZXQoInBhdGgiKSBvciBjaGFuZ2UuZ2V0KCJmaWxlX3BhdGgiKSBvcgogICAgICAgICAgICAgICBjaGFuZ2UuZ2V0KCJmaWxlbmFtZSIpIG9yIGNoYW5nZS5nZXQoImZpbGUiKSBvciAiIikKICAgICAgICBmYyAgPSAoY2hhbmdlLmdldCgiY29udGVudCIpIG9yIGNoYW5nZS5nZXQoImNvZGUiKSBvcgogICAgICAgICAgICAgICBjaGFuZ2UuZ2V0KCJmaWxlX2NvbnRlbnQiKSBvciAiIikKICAgICAgICBtb2RlICAgPSBjaGFuZ2UuZ2V0KCJtb2RlIiwgImZ1bGwiKS5sb3dlcigpCiAgICAgICAgYW5jaG9yID0gY2hhbmdlLmdldCgiYW5jaG9yIiwgIiIpCgogICAgICAgIGlmIG5vdCBmcDoKICAgICAgICAgICAgcHJpbnQoIldhcm5pbmc6IG5vIHBhdGgsIHNraXBwaW5nIikKICAgICAgICAgICAgY29udGludWUKCiAgICAgICAgZnAgPSBmcC5sc3RyaXAoIi4vIikKICAgICAgICBvcmlnID0gIiIKICAgICAgICB0cnk6CiAgICAgICAgICAgIHdpdGggb3BlbihmcCwgInIiLCBlbmNvZGluZz0idXRmLTgiLCBlcnJvcnM9Imlnbm9yZSIpIGFzIGZoOgogICAgICAgICAgICAgICAgb3JpZyA9IGZoLnJlYWQoKQogICAgICAgIGV4Y2VwdDoKICAgICAgICAgICAgcGFzcwoKICAgICAgICBpZiBtb2RlID09ICJhcHBlbmQiOgogICAgICAgICAgICBmaW5hbCA9IG9yaWcucnN0cmlwKCkgKyAiXG5cbiIgKyBmYwogICAgICAgICAgICBwcmludChmIlthcHBlbmRdIHtmcH06ICt7bGVuKGZjKX0gY2hhcnMiKQogICAgICAgIGVsaWYgbW9kZSA9PSAicmVwbGFjZV9ibG9jayI6CiAgICAgICAgICAgIGlmIGFuY2hvciBhbmQgYW5jaG9yIGluIG9yaWc6CiAgICAgICAgICAgICAgICBmaW5hbCA9IG9yaWcucmVwbGFjZShhbmNob3IsIGZjLCAxKQogICAgICAgICAgICAgICAgcHJpbnQoZiJbcmVwbGFjZV9ibG9ja10ge2ZwfTogT0siKQogICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgcHJpbnQoZiJXYXJuaW5nOiBhbmNob3Igbm90IGZvdW5kIGluIHtmcH0sIHVzaW5nIGFwcGVuZCIpCiAgICAgICAgICAgICAgICBmaW5hbCA9IG9yaWcucnN0cmlwKCkgKyAiXG5cbiIgKyBmYwogICAgICAgIGVsc2U6CiAgICAgICAgICAgIGlmIGxlbihvcmlnKSA+IDUwMCBhbmQgbGVuKGZjKSA8IGxlbihvcmlnKSAqIDAuNToKICAgICAgICAgICAgICAgIHByaW50KGYiV2FybmluZzoge2ZwfSBmdWxsIG1vZGUgc2l6ZSBpc3N1ZSwgc2tpcHBpbmciKQogICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgZmluYWwgPSBmYwogICAgICAgICAgICBwcmludChmIltmdWxsXSB7ZnB9OiB7bGVuKG9yaWcpfS0+e2xlbihmaW5hbCl9IGNoYXJzIikKCiAgICAgICAgb3MubWFrZWRpcnMob3MucGF0aC5kaXJuYW1lKGZwKSBvciAiLiIsIGV4aXN0X29rPVRydWUpCiAgICAgICAgd2l0aCBvcGVuKGZwLCAidyIsIGVuY29kaW5nPSJ1dGYtOCIpIGFzIGZoOgogICAgICAgICAgICBmaC53cml0ZShmaW5hbCkKCiAgICB3aXRoIG9wZW4ob3MuZW52aXJvblsiR0lUSFVCX0VOViJdLCAiYSIpIGFzIGVmOgogICAgICAgIGVmLndyaXRlKGYiQ09NTUlUX01TRz17cmVzdWx0LmdldCgnc3VtbWFyeScsICdBSSBmaXgnKX1cbiIpCiAgICAgICAgY2xlYW4gPSByZXN1bHQuZ2V0KCJhbmFseXNpcyIsICIiKS5yZXBsYWNlKCJcbiIsICIgIikucmVwbGFjZSgiXHIiLCAiIikKICAgICAgICBlZi53cml0ZShmIkdFTUlOSV9BTkFMWVNJUz17Y2xlYW59XG4iKQogICAgICAgIGVmLndyaXRlKCJFUlJPUl9UWVBFPW5vbmVcbiIpCgpleGNlcHQgRXhjZXB0aW9uIGFzIGU6CiAgICBlcnIgPSBzdHIoZSkKICAgIHdpdGggb3Blbihvcy5lbnZpcm9uWyJHSVRIVUJfRU5WIl0sICJhIikgYXMgZWY6CiAgICAgICAgZWYud3JpdGUoIkVSUk9SX1RZUEU9NTAzXG4iIGlmICI1MDMiIGluIGVyciBvciAiVU5BVkFJTEFCTEUiIGluIGVyciBlbHNlICJFUlJPUl9UWVBFPXVua25vd25cbiIpCiAgICBwcmludChmIkVycm9yOiB7ZX0iKQogICAgcmFpc2UgZQo=' | base64 -d > /tmp/agent.py
+          python3 /tmp/agent.py
+
+      - name: Commit and push safely
+        if: env.MODE == 'ai'
+        id: commit_push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+          else
+            git commit -m "🤖 [Issue #${{ github.event.issue.number }}] ${{ env.COMMIT_MSG }}"
+
+            SUCCESS=false
+            for i in {1..3}; do
+              if git pull --rebase -X theirs origin main && git push origin main; then
+                SUCCESS=true
+                break
+              fi
+              echo "Push rejected. Retrying in 5s..."
+              sleep 5
+            done
+
+            if [ "$SUCCESS" = false ]; then exit 1; fi
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+          fi
+
+      - name: Comment on issue
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          HAS_CHANGES: ${{ env.HAS_CHANGES }}
+          GEMINI_ANALYSIS: ${{ env.GEMINI_ANALYSIS }}
+          COMMIT_MSG: ${{ env.COMMIT_MSG }}
+          JOB_STATUS: ${{ job.status }}
+          ERROR_TYPE: ${{ env.ERROR_TYPE }}
+          MODE: ${{ env.MODE }}
+          REVERT_HASH: ${{ env.REVERT_HASH }}
+        with:
+          script: |
+            const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS, ERROR_TYPE, MODE, REVERT_HASH } = process.env;
+            let body = '';
+            if (JOB_STATUS === 'success') {
+              if (MODE === 'revert') {
+                body = `## ✅ REVERT: ${REVERT_HASH} 실행 완료.`;
+              } else {
+                body = `## ✅ gemini-3-flash-preview 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
+                body += HAS_CHANGES === 'true'
+                  ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
+                  : `> ✨ 변경 사항이 없어 종료되었습니다.`;
+              }
+            } else if (ERROR_TYPE === '503') {
+              body = `## ⚠️ Gemini 서버 오류\n\n**503 UNAVAILABLE** - Gemini 서버에 현재 요청이 폭주하고 있습니다.\n\n> 잠시 후 이슈에 \`ai\` 라벨을 다시 추가하여 재시도해 주세요.`;
+            } else if (MODE === 'revert' && ERROR_TYPE === 'not_latest') {
+              body = `## ❌ REVERT 불가\n\n커밋 \`${REVERT_HASH}\` 은 최신 커밋이 아닙니다.\n\n> 최신 커밋만 되돌릴 수 있습니다. GitHub에서 최신 커밋 해시를 확인해 주세요.`;
+            } else if (MODE === 'revert') {
+              body = `## ❌ 되돌리기 실패\n\n커밋 \`${REVERT_HASH}\` 을 되돌리는 중 오류가 발생했습니다.\n\n> Actions 로그를 확인해 주세요.`;
+            } else {
+              body = `## ❌ 작업 실패\n\nGit 충돌 또는 설정 오류가 발생했습니다. Actions 로그를 확인해 주세요.`;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
