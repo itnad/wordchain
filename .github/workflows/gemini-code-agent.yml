@@ -2,16 +2,14 @@ name: Gemini Code Agent
 
 on:
   issues:
-    types: [labeled] # opened를 제거
+    types: [labeled]
 
-# 동일 이슈에 대해 여러 번 실행될 경우 중복 방지
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   gemini-code-agent:
-    # 제목에 [AI]가 있거나 'ai' 레이블이 있을 때만 실행
     if: |
       contains(github.event.issue.labels.*.name, 'ai') ||
       startsWith(github.event.issue.title, '[AI]')
@@ -25,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Rebase를 위해 전체 히스토리 필요
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -62,11 +60,11 @@ jobs:
           from google import genai
           from google.genai import types
 
-          # [수정 핵심] api_version 설정을 제거하여 404를 방지합니다.
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
           
           # [수정 핵심] models/ 접두사를 포함한 Gemini ID
-          MODEL_ID = "models/gemini-3-flash-preview"
+          MODEL_ID = "gemini-3-flash-preview"
+          # MODEL_ID = "models/gemini-3-flash-preview"
           # "gemini-2.5-flash"
           # "gemini-3.1-pro-preview"
           
@@ -97,18 +95,28 @@ jobs:
                       response_mime_type="application/json"
                   )
               )
-              result = response.parsed if response.parsed else json.loads(response.text)
+
+              raw = response.parsed if response.parsed else json.loads(response.text)
+
+              # ✅ 리스트로 반환된 경우 딕셔너리로 감싸기
+              if isinstance(raw, list):
+                  result = {"changes": raw, "summary": "AI fix", "analysis": ""}
+              elif isinstance(raw, dict):
+                  result = raw
+              else:
+                  raise ValueError(f"Unexpected response type: {type(raw)}")
 
               for change in result.get("changes", []):
                   path = change["path"].lstrip("./")
                   os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-                  with open(path, "w", encoding="utf-8") as fh: fh.write(change["content"])
+                  with open(path, "w", encoding="utf-8") as fh:
+                      fh.write(change["content"])
 
               with open(os.environ["GITHUB_ENV"], "a") as ef:
                   ef.write(f"COMMIT_MSG={result.get('summary', 'AI fix')}\n")
-                  # 줄바꿈 문제 해결을 위해 analysis 텍스트 처리
                   clean_analysis = result.get('analysis', '').replace('\n', ' ').replace('\r', '')
                   ef.write(f"GEMINI_ANALYSIS={clean_analysis}\n")
+
           except Exception as e:
               print(f"Error: {e}")
               raise e
@@ -120,15 +128,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add -A
           if git diff --cached --quiet; then
             echo "HAS_CHANGES=false" >> $GITHUB_ENV
           else
             git commit -m "🤖 [Issue #${{ github.event.issue.number }}] ${{ env.COMMIT_MSG }}"
-            
-            # 수동 수정본(Remote)이 있을 경우 Gemini의 작업을 그 위로 Rebase
-            # 충돌 발생 시 Gemini의 작업(-X theirs)을 우선하여 덮어씀
+
             SUCCESS=false
             for i in {1..3}; do
               if git pull --rebase -X theirs origin main && git push origin main; then
@@ -138,7 +144,7 @@ jobs:
               echo "Push rejected. Retrying in 5s..."
               sleep 5
             done
-            
+
             if [ "$SUCCESS" = false ]; then exit 1; fi
             echo "HAS_CHANGES=true" >> $GITHUB_ENV
           fi
