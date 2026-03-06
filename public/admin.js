@@ -374,15 +374,6 @@ async function wiSubmit() {
   if (!chars.every(c => /[가-힣]/.test(c))) { wiShowError('한글 단어만 입력 가능합니다.'); return; }
   if (wiState.usedWords.includes(word)) { wiShowError('이미 추가한 단어입니다.'); return; }
 
-  if (!wiState.isFirstWord) {
-    const allowed = wiState.requiredChars.map(r => r.char);
-    if (!allowed.includes(chars[0])) {
-      const display = wiState.requiredChars.map(r => `'${r.char}'`).join(' 또는 ');
-      wiShowError(`${display}(으)로 시작하는 단어를 입력해야 합니다.`);
-      return;
-    }
-  }
-
   const btn = document.getElementById('wiSubmitBtn');
   btn.disabled = true;
 
