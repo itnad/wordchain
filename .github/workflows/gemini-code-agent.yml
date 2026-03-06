@@ -66,7 +66,7 @@ jobs:
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
           
           # [수정 핵심] models/ 접두사를 포함한 Gemini 3.1 Pro ID
-          MODEL_ID = "models/gemini-3.1-pro"
+          MODEL_ID = "models/gemini-3.1-pro-preview"
           # "gemini-2.5-flash"
           # "gemini-3.1-pro-preview"
           
