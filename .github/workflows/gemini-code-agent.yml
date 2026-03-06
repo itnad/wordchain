@@ -65,13 +65,13 @@ jobs:
           # [수정 핵심] api_version 설정을 제거하여 404를 방지합니다.
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
           
-          # [수정 핵심] models/ 접두사를 포함한 Gemini 3.1 Pro ID
-          MODEL_ID = "models/gemini-3.1-pro-preview"
+          # [수정 핵심] models/ 접두사를 포함한 Gemini ID
+          MODEL_ID = "models/gemini-3-flash-preview"
           # "gemini-2.5-flash"
           # "gemini-3.1-pro-preview"
           
           system_instruction = (
-              "너는 세계 수준급의 시니어 개발자다. 1. 기존 한글 로직 보존 2. JSON 형식 엄수 3. 요청 기능 완벽 구현."
+              "너는 세계 수준급의 시니어 개발자다. 1. 수정 요청하지 않은 부분은 기존 로직을 최대한 보존 2. JSON 형식 엄수 3. 요청 기능 수정 후 전체적인 오류 없는지 검토해서 개발해줘."
           )
           
           repo_files = {}
@@ -156,7 +156,7 @@ jobs:
             const { HAS_CHANGES, GEMINI_ANALYSIS, COMMIT_MSG, JOB_STATUS } = process.env;
             let body = '';
             if (JOB_STATUS === 'success') {
-              body = `## ✅ Gemini 3.1 Pro 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
+              body = `## ✅ gemini-3-flash-preview 작업 완료\n\n**분석:**\n${GEMINI_ANALYSIS}\n\n`;
               body += HAS_CHANGES === 'true' 
                 ? `> 🛠 **Push 성공:** ${COMMIT_MSG}`
                 : `> ✨ 변경 사항이 없어 종료되었습니다.`;
