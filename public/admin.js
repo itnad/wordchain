@@ -409,3 +409,83 @@ function showToast(msg, isError = false) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);
 }
+
+
+// ===== 단어 관리 =====
+function initWordMgmt() {
+  const searchBtn = document.getElementById('wmSearchBtn');
+  const searchInput = document.getElementById('wmSearchInput');
+  const saveBtn = document.getElementById('wmSaveBtn');
+
+  if (!searchBtn || !searchInput || !saveBtn) return;
+
+  searchBtn.onclick = async () => {
+    const word = searchInput.value.trim();
+    if (!word) return;
+    
+    searchBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword, action: 'get-word', word }),
+      });
+      const data = await res.json();
+      
+      if (data.success && data.word) {
+        document.getElementById('wmResultArea').classList.remove('hidden');
+        document.getElementById('wmEmptyMsg').classList.add('hidden');
+        
+        const w = data.word;
+        document.getElementById('wmWordDisplay').textContent = w.word;
+        document.getElementById('wmPosInput').value = w.pos || '';
+        document.getElementById('wmDefInput').value = w.definition || '';
+        document.getElementById('wmLenInput').value = w.len || w.word.length;
+        document.getElementById('wmUsableInput').value = String(w.is_usable !== false);
+      } else {
+        document.getElementById('wmResultArea').classList.add('hidden');
+        document.getElementById('wmEmptyMsg').classList.remove('hidden');
+        document.getElementById('wmEmptyMsg').textContent = '단어를 찾을 수 없습니다.';
+      }
+    } catch (e) {
+      showToast('검색 중 오류 발생', true);
+    } finally {
+      searchBtn.disabled = false;
+    }
+  };
+
+  saveBtn.onclick = async () => {
+    const word = document.getElementById('wmWordDisplay').textContent;
+    const pos = document.getElementById('wmPosInput').value;
+    const definition = document.getElementById('wmDefInput').value;
+    const len = parseInt(document.getElementById('wmLenInput').value, 10);
+    const is_usable = document.getElementById('wmUsableInput').value === 'true';
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = '저장 중...';
+
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: adminPassword,
+          action: 'update-word',
+          word,
+          updates: { pos, definition, len, is_usable }
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`"${word}" 정보가 수정되었습니다.`);
+      } else {
+        showToast('수정 실패: ' + (data.message || '알 수 없는 오류'), true);
+      }
+    } catch (e) {
+      showToast('서버 오류 발생', true);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '저장하기';
+    }
+  };
+}
