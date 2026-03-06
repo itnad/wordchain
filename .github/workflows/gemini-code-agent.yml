@@ -114,18 +114,15 @@ jobs:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          cat > /tmp/agent.py << 'PYEOF'
+          cat > /tmp/agent.py << 'PYEOF2'
           import os
           import json
+          import re
           from google import genai
           from google.genai import types
 
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
           MODEL_ID = "gemini-3-flash-preview"
-          # MODEL_ID = "models/gemini-3-flash-preview"
-          # "gemini-2.5-flash"
-          # "gemini-3.1-pro-preview"
 
           system_instruction = (
               "너는 세계 수준급의 시니어 개발자다. "
@@ -134,7 +131,27 @@ jobs:
               "2. 보안 관련 코드(인증, 비밀번호, 세션, 권한 등)는 요청이 없으면 절대 수정하지 마라.\n"
               "3. 기존 로직을 삭제하거나 비활성화하지 마라. 추가만 허용된다.\n"
               "4. 요청 범위 밖의 리팩토링, 최적화, 보안 개선은 하지 마라.\n"
-              "5. JSON 형식 엄수."
+              "5. 응답은 반드시 아래 JSON 형식을 엄수해라.\n"
+              "\n"
+              "응답 JSON 형식:\n"
+              "{\n"
+              '  \"changes\": [\n'
+              "    {\n"
+              '      \"path\": \"파일경로\",\n'
+              '      \"mode\": \"append | replace_block | full\",\n'
+              '      \"content\": \"추가하거나 교체할 코드\",\n'
+              '      \"anchor\": \"(replace_block 모드일 때) 교체할 기존 코드의 첫 줄\"\n'
+              "    }\n"
+              "  ],\n"
+              '  \"summary\": \"한 줄 요약\",\n'
+              '  \"analysis\": \"분석 내용\"\n'
+              "}\n"
+              "\n"
+              "mode 설명:\n"
+              "- append: 파일 끝에 content를 추가. 신규 함수/기능 추가 시 사용.\n"
+              "- replace_block: anchor로 지정한 줄을 찾아 그 블록을 content로 교체. 기존 함수 수정 시 사용.\n"
+              "- full: 파일 전체를 content로 교체. 반드시 작은 파일(500자 미만)에만 사용.\n"
+              "- 큰 파일(500자 초과)은 절대 full 모드 사용 금지. append 또는 replace_block만 사용해라."
           )
 
           repo_files = {}
@@ -164,7 +181,6 @@ jobs:
 
               raw = response.parsed if response.parsed else json.loads(response.text)
 
-              # ✅ 리스트로 반환된 경우 딕셔너리로 감싸기
               if isinstance(raw, list):
                   result = {"changes": raw, "summary": "AI fix", "analysis": ""}
               elif isinstance(raw, dict):
@@ -173,38 +189,52 @@ jobs:
                   raise ValueError(f"Unexpected response type: {type(raw)}")
 
               for change in result.get("changes", []):
-                  # ✅ 다양한 키 이름 대응
                   file_path = (
-                      change.get("path") or
-                      change.get("file_path") or
-                      change.get("filename") or
-                      change.get("file") or
-                      ""
+                      change.get("path") or change.get("file_path") or
+                      change.get("filename") or change.get("file") or ""
                   )
                   file_content = (
-                      change.get("content") or
-                      change.get("code") or
-                      change.get("file_content") or
-                      ""
+                      change.get("content") or change.get("code") or
+                      change.get("file_content") or ""
                   )
+                  mode = change.get("mode", "full").lower()
+                  anchor = change.get("anchor", "")
 
                   if not file_path:
-                      print(f"Warning: 경로를 찾을 수 없는 change 항목 건너뜀: {change.keys()}")
+                      print(f"Warning: 경로 없는 항목 건너뜀: {change.keys()}")
                       continue
 
                   file_path = file_path.lstrip("./")
-
-                  # ✅ 파일 내용 검증: 기존 파일 대비 10% 미만으로 줄어들면 스킵
                   original_content = repo_files.get("./" + file_path, repo_files.get(file_path, ""))
                   original_size = len(original_content)
-                  new_size = len(file_content)
-                  if original_size > 100 and new_size < original_size * 0.1:
-                      print(f"Warning: {file_path} 내용이 기존({original_size}자)의 10% 미만({new_size}자)으로 줄어듦 → 스킵 (응답 잘림 의심)")
-                      continue
 
-                  os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+                  # ── mode별 처리 ──
+                  if mode == "append":
+                      # 기존 파일 끝에 추가
+                      final_content = original_content.rstrip() + "\n\n" + file_content
+                      print(f"[append] {file_path}: {original_size}자 + {len(file_content)}자")
+
+                  elif mode == "replace_block" and anchor:
+                      # anchor 줄을 찾아서 블록 교체
+                      if anchor in original_content:
+                          # anchor 줄부터 다음 빈줄+함수 시작 전까지 교체
+                          final_content = original_content.replace(anchor, file_content, 1)
+                          print(f"[replace_block] {file_path}: anchor 교체 성공")
+                      else:
+                          print(f"Warning: {file_path} anchor를 찾지 못함, append로 대체")
+                          final_content = original_content.rstrip() + "\n\n" + file_content
+
+                  else:
+                      # full 모드: 크기 검증
+                      if original_size > 500 and len(file_content) < original_size * 0.5:
+                          print(f"Warning: {file_path} full 모드인데 내용이 너무 줄어듦({original_size}→{len(file_content)}자) → 스킵")
+                          continue
+                      final_content = file_content
+                      print(f"[full] {file_path}: {original_size}자 → {len(final_content)}자")
+
+                  os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
                   with open(file_path, "w", encoding="utf-8") as fh:
-                      fh.write(file_content)
+                      fh.write(final_content)
 
               with open(os.environ["GITHUB_ENV"], "a") as ef:
                   ef.write(f"COMMIT_MSG={result.get('summary', 'AI fix')}\n")
@@ -221,7 +251,7 @@ jobs:
                       ef.write("ERROR_TYPE=unknown\n")
               print(f"Error: {e}")
               raise e
-          PYEOF
+          PYEOF2
           python3 /tmp/agent.py
 
       - name: Commit and push safely
