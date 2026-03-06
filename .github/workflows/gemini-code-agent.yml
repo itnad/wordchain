@@ -157,7 +157,8 @@ jobs:
                   config=types.GenerateContentConfig(
                       system_instruction=system_instruction,
                       temperature=0.1,
-                      response_mime_type="application/json"
+                      response_mime_type="application/json",
+                      max_output_tokens=8192
                   )
               )
 
@@ -192,6 +193,15 @@ jobs:
                       continue
 
                   file_path = file_path.lstrip("./")
+
+                  # ✅ 파일 내용 검증: 기존 파일 대비 10% 미만으로 줄어들면 스킵
+                  original_content = repo_files.get("./" + file_path, repo_files.get(file_path, ""))
+                  original_size = len(original_content)
+                  new_size = len(file_content)
+                  if original_size > 100 and new_size < original_size * 0.1:
+                      print(f"Warning: {file_path} 내용이 기존({original_size}자)의 10% 미만({new_size}자)으로 줄어듦 → 스킵 (응답 잘림 의심)")
+                      continue
+
                   os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
                   with open(file_path, "w", encoding="utf-8") as fh:
                       fh.write(file_content)
