@@ -69,10 +69,23 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # ✅ 최신 커밋 여부 확인 (앞 7자리로 비교)
+          LATEST_HASH=$(git rev-parse --short=7 HEAD)
+          INPUT_SHORT="${{ env.REVERT_HASH }}"
+          INPUT_SHORT="${INPUT_SHORT:0:7}"
+
+          echo "최신 커밋: $LATEST_HASH / 입력 해시: $INPUT_SHORT"
+
+          if [ "$LATEST_HASH" != "$INPUT_SHORT" ]; then
+            echo "ERROR_TYPE=not_latest" >> $GITHUB_ENV
+            echo "❌ 최신 커밋이 아닙니다. REVERT 불가."
+            exit 1
+          fi
+
           echo "🔄 커밋 되돌리기: ${{ env.REVERT_HASH }}"
 
           if ! git revert ${{ env.REVERT_HASH }} --no-edit; then
-            echo "REVERT_FAILED=true" >> $GITHUB_ENV
+            echo "ERROR_TYPE=conflict" >> $GITHUB_ENV
             exit 1
           fi
 
@@ -254,8 +267,10 @@ jobs:
               }
             } else if (ERROR_TYPE === '503') {
               body = `## ⚠️ Gemini 서버 오류\n\n**503 UNAVAILABLE** - Gemini 서버에 현재 요청이 폭주하고 있습니다.\n\n> 잠시 후 이슈에 \`ai\` 라벨을 다시 추가하여 재시도해 주세요.`;
+            } else if (MODE === 'revert' && ERROR_TYPE === 'not_latest') {
+              body = `## ❌ REVERT 불가\n\n커밋 \`${REVERT_HASH}\` 은 최신 커밋이 아닙니다.\n\n> 최신 커밋만 되돌릴 수 있습니다. GitHub에서 최신 커밋 해시를 확인해 주세요.`;
             } else if (MODE === 'revert') {
-              body = `## ❌ 되돌리기 실패\n\n커밋 \`${REVERT_HASH}\` 을 되돌리는 중 충돌이 발생했습니다.\n\n> Actions 로그를 확인해 주세요.`;
+              body = `## ❌ 되돌리기 실패\n\n커밋 \`${REVERT_HASH}\` 을 되돌리는 중 오류가 발생했습니다.\n\n> Actions 로그를 확인해 주세요.`;
             } else {
               body = `## ❌ 작업 실패\n\nGit 충돌 또는 설정 오류가 발생했습니다. Actions 로그를 확인해 주세요.`;
             }
