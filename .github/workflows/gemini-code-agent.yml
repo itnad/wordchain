@@ -107,10 +107,29 @@ jobs:
                   raise ValueError(f"Unexpected response type: {type(raw)}")
 
               for change in result.get("changes", []):
-                  path = change["path"].lstrip("./")
-                  os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-                  with open(path, "w", encoding="utf-8") as fh:
-                      fh.write(change["content"])
+                  # ✅ 다양한 키 이름 대응
+                  file_path = (
+                      change.get("path") or
+                      change.get("file_path") or
+                      change.get("filename") or
+                      change.get("file") or
+                      ""
+                  )
+                  file_content = (
+                      change.get("content") or
+                      change.get("code") or
+                      change.get("file_content") or
+                      ""
+                  )
+
+                  if not file_path:
+                      print(f"Warning: 경로를 찾을 수 없는 change 항목 건너뜀: {change.keys()}")
+                      continue
+
+                  file_path = file_path.lstrip("./")
+                  os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+                  with open(file_path, "w", encoding="utf-8") as fh:
+                      fh.write(file_content)
 
               with open(os.environ["GITHUB_ENV"], "a") as ef:
                   ef.write(f"COMMIT_MSG={result.get('summary', 'AI fix')}\n")
