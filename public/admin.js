@@ -422,9 +422,36 @@ function initWordMgmt() {
 
   const searchBtn   = document.getElementById('wmSearchBtn');
   const searchInput = document.getElementById('wmSearchInput');
+  const recalcBtn   = document.getElementById('wmRecalcBtn');
   if (!searchBtn || !searchInput) return;
 
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchBtn.click(); });
+
+  recalcBtn.addEventListener('click', async () => {
+    if (!confirm('모든 단어의 필살/희귀 점수를 재계산합니다.\n완료까지 수초 걸릴 수 있습니다. 진행할까요?')) return;
+    recalcBtn.disabled = true;
+    recalcBtn.textContent = '계산 중...';
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword, action: 'recalc-difficulty' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          `난이도 정리 완료 — 총 ${data.total}개 | 필살 ${data.killer}개 | 희귀(1) ${data.rare1}개 | 희귀(2) ${data.rare2}개 | 일반 ${data.normal}개`,
+        );
+      } else {
+        showToast('오류: ' + (data.error || '알 수 없음'), true);
+      }
+    } catch {
+      showToast('서버 오류', true);
+    } finally {
+      recalcBtn.disabled = false;
+      recalcBtn.textContent = '단어 난이도 정리';
+    }
+  });
 
   searchBtn.addEventListener('click', async () => {
     const word = searchInput.value.trim();

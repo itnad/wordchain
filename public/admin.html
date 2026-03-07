@@ -102,6 +102,11 @@
     .wm-input:focus { border-color: var(--accent); }
     .wm-btn { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
     .wm-result-info { padding: 12px 0 8px; font-size: 0.85rem; color: var(--dim); }
+    .wm-tools-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+    .wm-tools-desc { flex: 1; font-size: 0.8rem; color: var(--dim); line-height: 1.5; }
+    .wm-recalc-btn { white-space: nowrap; padding: 8px 16px; background: rgba(251,191,36,0.1); border: 1px solid var(--warn); border-radius: 6px; color: var(--warn); font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+    .wm-recalc-btn:hover { background: rgba(251,191,36,0.2); }
+    .wm-recalc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .wm-select { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 5px 8px; outline: none; font-size: 0.85rem; width: 100%; cursor: pointer; }
     .wm-select:focus { border-color: var(--accent); }
   </style>
@@ -199,6 +204,10 @@
 
   <!-- 단어 관리 -->
   <div id="panelWordMgmt" style="display:none">
+    <div class="wm-tools-row">
+      <span class="wm-tools-desc">끝 글자로 이어지는 단어 수를 계산해 필살/희귀 점수를 자동 갱신합니다.<br>0개→필살(0) / 1개→희귀(1) / 2개→희귀(2) / 3개 이상→일반(NULL)</span>
+      <button class="wm-recalc-btn" id="wmRecalcBtn">단어 난이도 정리</button>
+    </div>
     <div class="wm-search-row">
       <input type="text" id="wmSearchInput" class="wm-input" placeholder="단어 검색 (부분 검색 가능)">
       <button class="wm-btn" id="wmSearchBtn">검색</button>

@@ -5,6 +5,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// ===== 두음법칙 =====
+const I_VOWELS = new Set([2, 3, 6, 7, 12, 17, 20]);
+function decomposeSyllable(char) {
+  const code = char.charCodeAt(0) - 0xAC00;
+  if (code < 0 || code > 11171) return null;
+  const jong = code % 28;
+  const jung = Math.floor((code - jong) / 28) % 21;
+  const cho  = Math.floor(code / 28 / 21);
+  return { cho, jung, jong };
+}
+function composeSyllable(cho, jung, jong) {
+  return String.fromCharCode((cho * 21 + jung) * 28 + jong + 0xAC00);
+}
+function getDuemVariants(char) {
+  const d = decomposeSyllable(char);
+  if (!d) return [char];
+  const { cho, jung, jong } = d;
+  const variants = [char];
+  if (cho === 5) {
+    const newCho = I_VOWELS.has(jung) ? 11 : 2;
+    const v = composeSyllable(newCho, jung, jong);
+    if (v !== char) variants.push(v);
+  } else if (cho === 2 && I_VOWELS.has(jung)) {
+    const v = composeSyllable(11, jung, jong);
+    if (v !== char) variants.push(v);
+  }
+  return variants;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -128,6 +157,57 @@ export default async function handler(req, res) {
       .eq('word', word);
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ success: true });
+  }
+
+  // 단어 난이도 일괄 재계산
+  if (action === 'recalc-difficulty') {
+    // 1. 유효한 단어 전체 조회
+    const { data: allWords, error: fetchErr } = await supabase
+      .from('words')
+      .select('word, first_char, last_char')
+      .eq('is_valid', true);
+    if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+
+    // 2. first_char별 단어 수 집계 (두음법칙 변형도 포함)
+    const firstCharCount = {};
+    for (const w of allWords) {
+      if (!w.first_char) continue;
+      firstCharCount[w.first_char] = (firstCharCount[w.first_char] || 0) + 1;
+    }
+
+    // 3. 각 단어의 last_char로 이어지는 단어 수 계산 → killer_score 결정
+    const groups = { 0: [], 1: [], 2: [], null: [] };
+    for (const w of allWords) {
+      if (!w.last_char) { groups[null].push(w.word); continue; }
+      const variants = getDuemVariants(w.last_char);
+      const count = variants.reduce((sum, v) => sum + (firstCharCount[v] || 0), 0);
+      if      (count === 0) groups[0].push(w.word);
+      else if (count === 1) groups[1].push(w.word);
+      else if (count === 2) groups[2].push(w.word);
+      else                  groups[null].push(w.word);
+    }
+
+    // 4. 그룹별 일괄 업데이트 (500개씩 청크)
+    const CHUNK = 500;
+    for (const [score, words] of Object.entries(groups)) {
+      if (words.length === 0) continue;
+      const killer_score = score === 'null' ? null : Number(score);
+      for (let i = 0; i < words.length; i += CHUNK) {
+        const chunk = words.slice(i, i + CHUNK);
+        const { error: upErr } = await supabase
+          .from('words').update({ killer_score }).in('word', chunk);
+        if (upErr) return res.status(500).json({ error: upErr.message });
+      }
+    }
+
+    return res.json({
+      success: true,
+      total: allWords.length,
+      killer: groups[0].length,
+      rare1:  groups[1].length,
+      rare2:  groups[2].length,
+      normal: groups[null].length,
+    });
   }
 
   // 단어 관리: 삭제
