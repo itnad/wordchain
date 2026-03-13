@@ -178,16 +178,16 @@ async function loadHomeRanking() {
       return;
     }
 
-    const myName = localStorage.getItem('wc_display_name') || '';
+    const myNickname = localStorage.getItem('wc_nickname') || '';
     const medals = ['🥇', '🥈', '🥉'];
 
     body.innerHTML = ranking.map(r => {
-      const isMine = myName && r.display_name === myName;
+      const isMine = myNickname && r.nickname === myNickname;
       const pos    = r.rank <= 3 ? medals[r.rank - 1] : r.rank;
       const time   = formatRankTime(r.ended_at);
       return `<div class="home-ranking-row${isMine ? ' mine' : ''}">
         <span class="hrank-pos">${pos}</span>
-        <span class="hrank-name">${r.display_name}${isMine ? ' ★' : ''}</span>
+        <span class="hrank-name">${r.nickname || r.display_name}${isMine ? ' ★' : ''}</span>
         <span class="hrank-score">${r.player_word_count}단어</span>
         <span class="hrank-time">${time}</span>
       </div>`;
@@ -631,6 +631,7 @@ async function showGameOver(message, result) {
           result:            result ?? 'ai_win',
           player_word_count: state.playerWordCount,
           turns:             state.turns,
+          word_history:      state.chain,
         }),
       });
       const data = await res.json();

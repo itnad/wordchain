@@ -17,8 +17,8 @@ export default async function handler(req, res) {
   if (action === 'ranking') {
     const fetchAll = req.query.all === '1';
     const fields = fetchAll
-      ? 'display_name, player_word_count, ended_at, ip_address'
-      : 'display_name, player_word_count, ended_at';
+      ? 'nickname, display_name, player_word_count, ended_at, ip_address'
+      : 'nickname, display_name, player_word_count, ended_at';
     let query = supabase
       .from('game_sessions')
       .select(fields)
@@ -32,6 +32,7 @@ export default async function handler(req, res) {
     return res.json({
       ranking: (data ?? []).map((row, i) => ({
         rank:              i + 1,
+        nickname:          row.nickname,
         display_name:      row.display_name,
         player_word_count: row.player_word_count,
         ended_at:          row.ended_at,

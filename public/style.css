@@ -158,7 +158,7 @@ html, body {
 
 .version-tag {
   font-size: 0.68rem;
-  color: var(--border);
+  color: var(--text-dim);
   letter-spacing: 1px;
 }
 
