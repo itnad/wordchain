@@ -165,6 +165,39 @@ function formatRankTime(iso) {
   return `${mo}/${da} ${hh}:${mm}`;
 }
 
+let rankingCache   = null;
+let rankingShowNick = false;
+
+function renderHomeRanking() {
+  const body = $('homeRankingBody');
+  if (!body || !rankingCache) return;
+
+  const myNickname = localStorage.getItem('wc_nickname')    || '';
+  const myName     = localStorage.getItem('wc_display_name') || '';
+  const medals     = ['🥇', '🥈', '🥉'];
+
+  body.innerHTML = rankingCache.map(r => {
+    const isMine = rankingShowNick
+      ? (myNickname && r.nickname === myNickname)
+      : (myName     && r.display_name === myName);
+    const name = rankingShowNick ? (r.nickname || r.display_name) : (r.display_name || r.nickname);
+    const pos  = r.rank <= 3 ? medals[r.rank - 1] : r.rank;
+    const time = formatRankTime(r.ended_at);
+    return `<div class="home-ranking-row${isMine ? ' mine' : ''}">
+      <span class="hrank-pos">${pos}</span>
+      <span class="hrank-name">${name}${isMine ? ' ★' : ''}</span>
+      <span class="hrank-score">${r.player_word_count}단어</span>
+      <span class="hrank-time">${time}</span>
+    </div>`;
+  }).join('');
+
+  const trophy = document.getElementById('rankingTrophyBtn');
+  if (trophy) {
+    trophy.title = rankingShowNick ? '이름으로 보기' : '닉네임으로 보기';
+    trophy.style.opacity = rankingShowNick ? '0.6' : '1';
+  }
+}
+
 async function loadHomeRanking() {
   const body = $('homeRankingBody');
   if (!body) return;
@@ -178,26 +211,19 @@ async function loadHomeRanking() {
       return;
     }
 
-    const myNickname = localStorage.getItem('wc_nickname') || '';
-    const medals = ['🥇', '🥈', '🥉'];
-
-    body.innerHTML = ranking.map(r => {
-      const isMine = myNickname && r.nickname === myNickname;
-      const pos    = r.rank <= 3 ? medals[r.rank - 1] : r.rank;
-      const time   = formatRankTime(r.ended_at);
-      return `<div class="home-ranking-row${isMine ? ' mine' : ''}">
-        <span class="hrank-pos">${pos}</span>
-        <span class="hrank-name">${r.nickname || r.display_name}${isMine ? ' ★' : ''}</span>
-        <span class="hrank-score">${r.player_word_count}단어</span>
-        <span class="hrank-time">${time}</span>
-      </div>`;
-    }).join('');
+    rankingCache = ranking;
+    renderHomeRanking();
   } catch {
     body.innerHTML = '<div class="home-ranking-empty">랭킹을 불러올 수 없습니다.</div>';
   }
 }
 
 document.getElementById('homeRankingRefresh')?.addEventListener('click', loadHomeRanking);
+
+document.getElementById('rankingTrophyBtn')?.addEventListener('click', () => {
+  rankingShowNick = !rankingShowNick;
+  renderHomeRanking();
+});
 
 // ===== 닉네임 화면 이벤트 =====
 displayNameInput.addEventListener('input', () => {
@@ -451,7 +477,7 @@ async function aiFirstMove() {
     return;
   }
 
-  addToChain(result.word, 'ai', result.fromCache);
+  addToChain(result.word, 'ai', result.fromCache, result.fromGemini, result.geminiRaw);
   state.usedWords.push(result.word);
   state.turns++;
   state.isFirstWord = false;
@@ -502,7 +528,7 @@ async function aiTurn(previousWord) {
     return;
   }
 
-  addToChain(result.word, 'ai', result.fromCache);
+  addToChain(result.word, 'ai', result.fromCache, result.fromGemini, result.geminiRaw);
   state.usedWords.push(result.word);
   state.turns++;
   turnBadge.textContent = `${state.turns}턴`;
@@ -518,7 +544,7 @@ async function aiTurn(previousWord) {
 }
 
 // ===== UI 업데이트 =====
-function addToChain(word, turn, fromCache) {
+function addToChain(word, turn, fromCache, fromGemini, geminiRaw) {
   chainStartHint.classList.add('hidden');
 
   const chars = [...word];
@@ -530,17 +556,20 @@ function addToChain(word, turn, fromCache) {
   bubble.className = `word-bubble ${turn}`;
 
   const label = turn === 'user' ? (state.nickname || '나') : 'AI';
+  const geminiBadge = fromGemini
+    ? `<span class="gemini-badge" title="Gemini AI가 생성한 단어">gemini</span>`
+    : '';
   bubble.innerHTML = `
     <div class="bubble-top">
       <span class="bubble-label">${label}</span>
-      <button class="btn-word-info" title="뜻 보기 / 이의 제기">?</button>
+      ${geminiBadge}<button class="btn-word-info" title="뜻 보기 / 이의 제기">?</button>
     </div>
     <div class="bubble-word">
       <span class="hl-first">${first}</span>${mid}<span class="hl-last">${last}</span>
     </div>
   `;
 
-  bubble.querySelector('.btn-word-info').addEventListener('click', () => openWordInfo(word));
+  bubble.querySelector('.btn-word-info').addEventListener('click', () => openWordInfo(word, fromGemini, geminiRaw));
 
   chainContainer.appendChild(bubble);
   chainContainer.scrollTop = chainContainer.scrollHeight;
@@ -680,9 +709,21 @@ const modalDefinitions = $('modalDefinitions');
 const modalClose       = $('modalClose');
 const challengeBtn     = $('challengeBtn');
 
-function openWordInfo(word) {
+function openWordInfo(word, fromGemini, geminiRaw) {
   modalWord.textContent = word;
-  modalDefinitions.innerHTML = '<p class="no-definition">사전 연동 준비 중입니다.</p>';
+  if (fromGemini) {
+    modalDefinitions.innerHTML = `
+      <div class="gemini-info">
+        <div class="gemini-info-label">✨ Gemini AI가 생성한 단어</div>
+        <div class="gemini-info-row">
+          <span class="gemini-info-key">AI 응답</span>
+          <span class="gemini-info-val">${geminiRaw || word}</span>
+        </div>
+        <div class="gemini-info-note">DB에 없는 단어를 Gemini가 제안했습니다. 실제 표준국어대사전 등재 여부를 확인하지 않았으므로 오류가 있을 수 있습니다.</div>
+      </div>`;
+  } else {
+    modalDefinitions.innerHTML = '<p class="no-definition">사전 연동 준비 중입니다.</p>';
+  }
   challengeBtn.disabled = false;
   wordInfoModal.classList.remove('hidden');
 }

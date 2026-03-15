@@ -867,6 +867,55 @@ html, body {
 }
 .btn-word-info:hover { background: var(--border); }
 
+.gemini-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0;
+  cursor: default;
+}
+
+.gemini-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gemini-info-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #8b5cf6;
+}
+.gemini-info-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.88rem;
+}
+.gemini-info-key {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.gemini-info-val {
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+.gemini-info-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  padding: 8px 10px;
+  background: rgba(139, 92, 246, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
 /* ===== Admin Word Input Panel (used in admin.html via style.css) ===== */
 .wi-stats {
   padding: 12px 0 8px;

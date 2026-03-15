@@ -53,7 +53,7 @@ async function findWordWithGemini(requiredChars, usedWords, allowPersonNames, al
       if (startChar && wordChars[0] !== startChar) continue;
       if (usedWords.includes(word)) continue;
 
-      return { word, firstChar: wordChars[0], lastChar: wordChars[2] };
+      return { word, firstChar: wordChars[0], lastChar: wordChars[2], geminiRaw: raw };
     } catch (e) {
       console.error('Gemini API error:', e);
     }
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
           last_char:      geminiResult.lastChar,
           source:         'gemini',
         }, { onConflict: 'word' });
-        return res.json({ word: geminiResult.word, fromGemini: true });
+        return res.json({ word: geminiResult.word, fromGemini: true, geminiRaw: geminiResult.geminiRaw });
       }
       return res.json({ word: null, surrender: true });
     }
